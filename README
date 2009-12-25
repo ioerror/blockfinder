@@ -19,12 +19,12 @@ blockfinder has two methods of operation:
     Update the lists of network object allocations
     Returning a list of all netblocks (or asn, etc) for a given country
 
-
-To use blockfinder, first update the cache:
+To use blockfinder, first create or update the cache:
 
     blockfinder -i
 
-And search for the desired resource in the country of your choice:
+Once you have a proper cache, search for the desired resource in the country
+of your choice:
 
     ./blockfinder -v --ipv4 -t mm
 
