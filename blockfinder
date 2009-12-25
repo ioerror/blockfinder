@@ -73,7 +73,7 @@ def cache_age_check(cache_dir, cached_files):
     try:
         os.stat(cache_dir)
     except:
-        print "Did you initalize the cache directory?"
+        print "Did you initialize the cache directory?"
         sys.exit(2)
     for file in cached_files.split(","):
         fstat = os.stat(cache_dir + file)
