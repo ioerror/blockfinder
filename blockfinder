@@ -143,8 +143,7 @@ def main():
     output = None
     verbose = False
     silent = True
-    # XXX TODO: Perhaps we'd rather expand this to be in the users '~'?
-    cache_dir = "/var/tmp/delegation-data/"
+    cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
     update_delegations = False
     delegation_urls="""
         ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
