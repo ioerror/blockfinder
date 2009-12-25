@@ -88,7 +88,6 @@ def load_delegation(delegation_file):
     try:
         os.stat(delegation_file)
         f = open(delegation_file, "r")
-        # if not line.startswith("#"):
         delegations = [ dict((k,v) for k,v in zip(keys.split(","), line.split("|")))
                         for line in f.readlines()if not line.startswith("#")]
         return delegations
