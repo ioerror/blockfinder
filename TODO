@@ -1,0 +1,17 @@
+Add GeoIP support
+    Include the free database (and an update feature)
+    Optionally allow for an arbitrary custom database
+Add geoip database inversion
+    Optionally combine the results with delegation information to produce more
+    accurate netblocks
+Add country name support
+    eg: "Burma" or "mm"
+Add support to list all country codes with possible results
+Add support for proxies during updating/fetching
+Add support for a custom "User Agent:" during updating/fetching
+Add usage information
+Add CIDR information for all returned netblocks
+
+Refactor the argument parsing to make it reasonable
+    Required arguments should be postional, etc
+Refactor updating/fetching animation

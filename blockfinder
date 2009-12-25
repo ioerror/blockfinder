@@ -1,0 +1,218 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#
+# For the people of Smubworld!
+#
+import urllib2
+import os
+import time
+import getopt
+import sys
+
+__program__ = 'blockfinder'
+__url__ = 'http://github.com/ioerror/blockfinder/'
+__author__ = 'Jacob Appelbaum <jacob@appelbaum.net>'
+__copyright__ = 'Copyright (c) 2009'
+__license__ = 'See LICENSE for licensing information'
+__version__ = '3.1'
+
+try:
+    from future import antigravity
+except ImportError:
+        antigravity = None
+
+verbose = False
+
+# XXX TODO: Set the user agent and allow the use of a proxy
+# Set up a proper Request object, set the user agent and if desired, a proxy
+def fetch_delegation(delegation_url):
+    rows, columns = os.popen('stty size', 'r').read().split()
+    fetcher = urllib2.urlopen(delegation_url)
+    length = int(fetcher.headers.get("content-length"))
+    print "Fetching " + str(length) + " bytes"
+    chunk = int(int(length)/(int(columns) -4))
+    counter = 0
+    page = ""
+    # XXX TODO: we need to redraw the screen entirely, each run
+    # XXX TODO: Currently, if the user changes the screen, we draw incorrectly
+    sys.stdout.write("[" + "." * (int(columns) - 2) + "]")
+    sys.stdout.flush()
+    sys.stdout.write('\b' * (int(columns) - 2))
+    while 1:
+        page += fetcher.read(chunk)
+        counter += chunk
+        sys.stdout.write('\b')
+        sys.stdout.write("=")
+        sys.stdout.write(">")
+        sys.stdout.flush()
+        if counter >= length:
+            sys.stdout.write('\n')
+            sys.stdout.flush()
+            break
+    if length == len(page):
+        return page
+    else:
+        print "We're having an error fetching the right number of bytes!"
+        return page
+
+def cache_delegation(delegation_url, cache_dir):
+    try:
+        delegation = ""
+        print "Fetching " + delegation_url
+        delegation = fetch_delegation(delegation_url)
+        tmp = delegation_url.split('/')
+        delegation_file = str(cache_dir) + str(tmp[-1])
+        f = open(delegation_file, 'w')
+        f.write(delegation)
+        f.close()
+    except:
+        print "Unable to fetch or cache delegation"
+
+# This returns true of the cache is older than 24 hours
+def cache_age_check(cache_dir, cached_files):
+    for file in cached_files.split(","):
+        fstat = os.stat(cache_dir + file)
+    if (time.time() - fstat.st_ctime) > 86400:
+        return True
+
+def update_delegation_cache(delegation_urls, cache_dir):
+    print "Updating delegation cache"
+    for url in delegation_urls.split():
+        try:
+            cache_delegation(url, cache_dir)
+        except:
+            print "Unable to update delegation for " + url
+
+def load_delegation(delegation_file):
+    keys = "rir,cc,type,n,nn,asn,status"
+    try:
+        os.stat(delegation_file)
+        f = open(delegation_file, "r")
+        # if not line.startswith("#"):
+        delegations = [ dict((k,v) for k,v in zip(keys.split(","), line.split("|")))
+                        for line in f.readlines()if not line.startswith("#")]
+        return delegations
+    except:
+        print "It appears that we are missing " + delegation_file
+
+def load_all_delegations(cache_dir, delegation_urls):
+    delegations = []
+    if verbose:
+        print "Attempting to load the following urls: \n" + delegation_urls
+    for url in delegation_urls.split():
+        filename = url.rpartition('/')
+        if verbose:
+            print "Attempting to load delegation file: " + filename[-1]
+        delegations.append(load_delegation(cache_dir + filename[-1]))
+    return delegations
+
+def lookup_country(cc, delegation):
+    return [d for d in delegation if d['cc'] == cc]
+
+def lookup_type(type, delegation):
+    return [d for d in delegation if d['type'] == type]
+
+def usage():
+    print >> sys.stderr, "rtfm?"
+
+def main():
+    try:
+        opts, args = getopt.getopt(sys.argv[1:],
+                                   "vhc:u:pso:46at:i",
+                                   ["verbose", "help", "cachedir=", "useragent=", "progress",
+                                    "silent", "output=", "ipv4", "ipv6", "asn", "country=",
+                                    "initialize-delegation"])
+    except getopt.GetoptError, err:
+        print str(err)
+        usage()
+        sys.exit(2)
+
+    output = None
+    verbose = False
+    silent = True
+    cache_dir = "/var/tmp/delegation-data/"
+    update_delegations = False
+    delegation_urls="""
+        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
+        ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
+        ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
+        ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
+        ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
+    """
+    delegation_files=""
+    for url in delegation_urls.split():
+        filename = url.rpartition('/')
+        delegation_files += filename[-1] + ","
+    delegation_fmt="rir,cc,type,n,nn,asn,status"
+    iso_codes="http://www.iso.org/iso/list-en1-semic-3.txt"
+    user_agent = "blockfinder"
+    update_delegations = False
+    requests = []
+    country = ""
+    for o, a in opts:
+        if o == "-v":
+            verbose = True
+        elif o in ("-h", "--help"):
+            usage()
+            sys.exit()
+        elif o in ("-c", "--cachedir"):
+            cache_dir = a
+        elif o in ("-u", "--useragent"):
+            pass
+        elif o in ("-p", "--progress"):
+            progress = True
+        elif o in ("-s", "--silent"):
+            silent = True
+        elif o in ("-o", "--output"):
+            output = a
+        elif o in ("-4", "--ipv4"):
+            requests.append("ipv4")
+        elif o in ("-6", "--ipv6"):
+            requests.append("ipv6")
+        elif o in ("-a", "--asn"):
+            requests.append("asn")
+        # XXX TODO: This should be a positional argument as it's the only manditory one...
+        elif o in ("-t", "--nation-state"):
+            country = a.upper()
+        elif o in ("-i", "--initialize-delegations"):
+            update_delegations = True
+        else:
+            assert False, "Unhandled option; Sorry!"
+
+    # Update and quit of requested
+    if update_delegations:
+        update_delegation_cache(delegation_urls, cache_dir)
+        sys.exit(0)
+    if not requests:
+        print "Nothing to do. Have you requested anything?"
+        sys.exit(1)
+    # Check our cache age and warn if it's aged
+    total_delegations = 0
+    if cache_age_check(cache_dir, delegation_files) and verbose:
+        print "Your delegation cache is older than 24 hours; you probably want to update it."
+    delegations = load_all_delegations(cache_dir, delegation_urls)
+    for delegation in delegations:
+        total_delegations += len(delegation)
+    if verbose:
+        print "We have %d entries in our delegation cache." % total_delegations
+    tmp = []
+    resultnum = 0
+    matchnum = 0
+    for delegation in delegations:
+        try:
+            results = lookup_country(country, delegation)
+            resultnum += len(results)
+            for result in results:
+                for request in requests:
+                    if result['type'] == request:
+                        matchnum += 1
+                        print result['n']
+        except:
+            print sys.exc_info()
+            pass
+    if verbose:
+        print "We found approx possible %d entries in our delegation cache." % resultnum
+        print "We found %d matching entries in our delegation cache." % matchnum
+
+if __name__ == "__main__":
+    main()
