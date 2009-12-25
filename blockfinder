@@ -126,7 +126,27 @@ def lookup_type(type, delegation):
     return [d for d in delegation if d['type'] == type]
 
 def usage():
-    print >> sys.stderr, "rtfm?"
+    print >> sys.stderr, """
+blockfinder  [-c DIR] -i
+blockfinder [options] -t COUNTRY
+
+The first form initializes the local. The second form queries it.
+
+Understood options (not all of which are implemented yet):
+    -h, --help          Show this help and exit
+    -v                  Be verbose
+    -c, --cachedir DIR  Set the cache directory
+    -u, --useragent
+    -p, --progress
+    -o, --output FILE
+    -4, --ipv4          Search IPv4 allocations
+    -6, --ipv6          Search IPv6 allocation
+    -a, --asn           Search ASN allocations
+    -t, --nationstate CC  Set the country to search (given as a two-letter code)
+
+At least one of -t or -i is required, and when in -t mode, at least one of -4,
+-6, and -a is required in order to do anything sensible.
+"""
 
 def main():
     try:
