@@ -198,6 +198,7 @@ def main():
         sys.exit(0)
     if not requests:
         print "Nothing to do. Have you requested anything?"
+        print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
     # Check our cache age and warn if it's aged
     total_delegations = 0
