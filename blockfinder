@@ -191,9 +191,6 @@ def main():
     for url in delegation_urls.split():
         filename = url.rpartition('/')
         delegation_files += filename[-1] + ","
-    delegation_fmt="rir,cc,type,n,nn,asn,status"
-    iso_codes="http://www.iso.org/iso/list-en1-semic-3.txt"
-    user_agent = "blockfinder"
     update_delegations = False
     requests = []
     country = ""
