@@ -23,38 +23,28 @@ except ImportError:
 
 # XXX TODO: Set the user agent and allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
-def fetch_delegation(delegation_url):
-    """ Fetch (with progress meter) and return the contents of a delegation. """
+def update_progress_bar(percent_done):
+    """Write a progress bar to the console"""
     r, c = os.popen('stty size', 'r').read().split()
     rows, columns = int(r), int(c)
+    eff = columns - 3
+    sys.stdout.write("[" + "=" * int(percent_done*eff) + ">" + "." * (eff - int(percent_done * eff)) +  "]\x1b[G")
+    sys.stdout.flush()
+
+def fetch(url):
+    """ Fetch (with progress meter) and return the contents of a url. """
     fetcher = urllib2.urlopen(delegation_url)
     length = int(fetcher.headers.get("content-length"))
     if not length:
         raise Exception("Missing content-length header in reply from server.")
     print "Fetching ", length, " bytes"
-    chunk = ((length/columns) -4)
-    counter = 0
-    page = ""
-    # XXX TODO: we need to redraw the screen entirely, each run
-    # XXX TODO: Currently, if the user changes the screen, we draw incorrectly
-    sys.stdout.write("[" + "." * (columns - 2) + "]")
-    sys.stdout.flush()
-    sys.stdout.write('\b' * (columns - 2))
+    ret = ""
     while True:
-        page += fetcher.read(chunk)
-        counter += chunk
-        sys.stdout.write('\b')
-        sys.stdout.write("=")
-        sys.stdout.write(">")
-        sys.stdout.flush()
-        if counter >= length:
-            sys.stdout.write('\n')
-            sys.stdout.flush()
-            break
-    if length == len(page):
-        return page
-    else:
-        raise Exception("Error fetching the right number of bytes!")
+        update_progress_bar(float(ret) / length)
+        tmp = fetcher.read(1024)
+        if len(tmp) == 0:
+            return ret
+        ret += tmp
 
 def cache_delegation(cache_dir, delegation_url):
     """ Attempt to cache the contents of a delegation url in our cache dir. """
@@ -69,7 +59,7 @@ def cache_delegation(cache_dir, delegation_url):
              raise e
     delegation = ""
     print "Fetching " + delegation_url
-    delegation = fetch_delegation(delegation_url)
+    delegation = fetch(delegation_url)
     tmp = delegation_url.split('/')
     delegation_file = str(cache_dir) + str(tmp[-1])
     try:
