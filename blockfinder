@@ -77,8 +77,10 @@ def cache_delegation(delegation_url, cache_dir):
         f = open(delegation_file, 'w')
         f.write(delegation)
         f.close()
+        return True
     except:
         print "Unable to fetch or cache delegation"
+        return False
 
 # This returns true of the cache is older than 24 hours
 def cache_age_check(cache_dir, cached_files):
