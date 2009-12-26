@@ -25,20 +25,21 @@ except ImportError:
 # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch_delegation(delegation_url):
     """ Fetch (with progress meter) and return the contents of a delegation. """
-    rows, columns = os.popen('stty size', 'r').read().split()
+    r, c = os.popen('stty size', 'r').read().split()
+    rows, columns = int(r), int(c)
     fetcher = urllib2.urlopen(delegation_url)
     length = int(fetcher.headers.get("content-length"))
     if not length:
         raise Exception("Missing content-length header in reply from server.")
     print "Fetching ", length, " bytes"
-    chunk = int(int(length)/(int(columns) -4))
+    chunk = ((length/columns) -4)
     counter = 0
     page = ""
     # XXX TODO: we need to redraw the screen entirely, each run
     # XXX TODO: Currently, if the user changes the screen, we draw incorrectly
-    sys.stdout.write("[" + "." * (int(columns) - 2) + "]")
+    sys.stdout.write("[" + "." * (columns - 2) + "]")
     sys.stdout.flush()
-    sys.stdout.write('\b' * (int(columns) - 2))
+    sys.stdout.write('\b' * (columns - 2))
     while True:
         page += fetcher.read(chunk)
         counter += chunk
