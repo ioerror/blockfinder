@@ -97,7 +97,7 @@ def cache_age_check(cache_dir, cached_files):
 
 def update_delegation_cache(delegation_urls, cache_dir):
     """ Fetch multiple delegation urls and cache the contents. """
-    print "Updating delegation cache"
+    print "Updating delegation cache..."
     for url in delegation_urls.split():
         try:
             cache_delegation(url, cache_dir)
