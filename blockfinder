@@ -122,7 +122,7 @@ def load_all_delegations(cache_dir, delegation_urls):
     """ Load all delegations into memory. """
     delegations = []
     if verbose:
-        print "Attempting to load the following urls: \n" + delegation_urls
+        print "Attempting to load the following urls: " + delegation_urls
     for url in delegation_urls.split():
         filename = url.rpartition('/')
         if verbose:
