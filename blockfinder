@@ -56,7 +56,7 @@ def fetch_delegation(delegation_url):
     else:
         raise Exception("Error fetching the right number of bytes!")
 
-def cache_delegation(delegation_url, cache_dir):
+def cache_delegation(cache_dir, delegation_url):
     """ Attempt to cache the contents of a delegation url in our cache dir. """
     try:
         os.stat(cache_dir)
@@ -100,7 +100,7 @@ def update_delegation_cache(cache_dir, delegation_urls):
     print "Updating delegation cache..."
     for url in delegation_urls.split():
         try:
-            cache_delegation(url, cache_dir)
+            cache_delegation(cache_dir, url)
             return True
         except:
             print "Unable to update delegation for " + url
