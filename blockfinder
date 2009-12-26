@@ -19,7 +19,7 @@ __version__ = '3.1'
 try:
     from future import antigravity
 except ImportError:
-        antigravity = None
+     antigravity = None
 
 verbose = False
 
