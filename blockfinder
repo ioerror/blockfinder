@@ -89,7 +89,7 @@ def cache_is_dated(cache_dir, cached_files):
     except OSError, e:
         print "Did you initialize the cache directory?"
         raise e
-    for file in cached_files.split(","):
+    for file in cached_files:
         fstat = os.stat(cache_dir + file)
         if (time.time() - fstat.st_mtime) > 86400:
             return True
@@ -187,10 +187,10 @@ def main():
         ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
         ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
     """
-    delegation_files=""
+    delegation_files=[]
     for url in delegation_urls.split():
         filename = url.rpartition('/')
-        delegation_files += filename[-1] + ","
+        delegation_files.append(filename[-1])
     update_delegations = False
     requests = []
     country = ""
