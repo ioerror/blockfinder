@@ -90,7 +90,7 @@ def cache_age_check(cache_dir, cached_files):
         sys.exit(2)
     for file in cached_files.split(","):
         fstat = os.stat(cache_dir + file)
-    if (time.time() - fstat.st_ctime) > 86400:
+    if (time.time() - fstat.st_mtime) > 86400:
         return True
 
 def update_delegation_cache(delegation_urls, cache_dir):
