@@ -26,6 +26,7 @@ verbose = False
 # XXX TODO: Set the user agent and allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch_delegation(delegation_url):
+    """ Fetch (with progress meter) and return the contents of a delegation. """
     rows, columns = os.popen('stty size', 'r').read().split()
     fetcher = urllib2.urlopen(delegation_url)
     length = int(fetcher.headers.get("content-length"))
@@ -57,6 +58,7 @@ def fetch_delegation(delegation_url):
         raise Exception("Error fetching the right number of bytes!")
 
 def cache_delegation(delegation_url, cache_dir):
+    """ Attempt to cache the contents of a delegation url in our cache dir. """
     try:
         os.stat(cache_dir)
     except:
@@ -80,6 +82,7 @@ def cache_delegation(delegation_url, cache_dir):
 
 # This returns true of the cache is older than 24 hours
 def cache_age_check(cache_dir, cached_files):
+    """ Check the age of the files in the cache directory."""
     try:
         os.stat(cache_dir)
     except:
@@ -91,6 +94,7 @@ def cache_age_check(cache_dir, cached_files):
         return True
 
 def update_delegation_cache(delegation_urls, cache_dir):
+    """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache"
     for url in delegation_urls.split():
         try:
@@ -99,6 +103,7 @@ def update_delegation_cache(delegation_urls, cache_dir):
             print "Unable to update delegation for " + url
 
 def load_delegation(delegation_file):
+    """ Load, parse and store the delegation file contents as a list. """
     keys = "rir,cc,type,n,nn,asn,status"
     try:
         os.stat(delegation_file)
@@ -110,6 +115,7 @@ def load_delegation(delegation_file):
         print "It appears that we are missing " + delegation_file
 
 def load_all_delegations(cache_dir, delegation_urls):
+    """ Load all delegations into memory. """
     delegations = []
     if verbose:
         print "Attempting to load the following urls: \n" + delegation_urls
@@ -121,12 +127,15 @@ def load_all_delegations(cache_dir, delegation_urls):
     return delegations
 
 def lookup_country(cc, delegation):
+    """ Return data about a given county code in a supplied delegation. """
     return [d for d in delegation if d['cc'] == cc]
 
 def lookup_type(type, delegation):
+    """ Return data about a given type in a supplied delegation. """
     return [d for d in delegation if d['type'] == type]
 
 def usage():
+    """ Print usage information. """
     print >> sys.stderr, """
 blockfinder  [-c DIR] -i
 blockfinder [options] -t COUNTRY
@@ -150,6 +159,7 @@ At least one of -t or -i is required, and when in -t mode, at least one of -4,
 """
 
 def main():
+    """ Where the magic starts. """
     try:
         opts, args = getopt.getopt(sys.argv[1:],
                                    "vhc:u:pso:46at:i",
