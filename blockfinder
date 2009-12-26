@@ -82,9 +82,8 @@ def cache_delegation(delegation_url, cache_dir):
         print "Unable to fetch or cache delegation"
         return False
 
-# This returns true of the cache is older than 24 hours
 def cache_age_check(cache_dir, cached_files):
-    """ Check the age of the files in the cache directory."""
+    """ Returns True if the mtime of the files in cache dir is > 24hrs."""
     try:
         os.stat(cache_dir)
     except:
