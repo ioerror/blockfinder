@@ -144,7 +144,7 @@ def usage():
 blockfinder  [-c DIR] -i
 blockfinder [options] -t COUNTRY
 
-The first form initializes the local. The second form queries it.
+The first form initializes the local cache. The second form queries it.
 
 Understood options (not all of which are implemented yet):
     -h, --help          Show this help and exit
