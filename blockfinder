@@ -82,7 +82,7 @@ def cache_delegation(delegation_url, cache_dir):
         print "Unable to fetch or cache delegation"
         return False
 
-def cache_age_check(cache_dir, cached_files):
+def cache_is_dated(cache_dir, cached_files):
     """ Returns True if the mtime of any files in cache dir is > 24hrs."""
     try:
         os.stat(cache_dir)
@@ -237,7 +237,7 @@ def main():
         sys.exit(1)
     # Check our cache age and warn if it's aged
     total_delegations = 0
-    if cache_age_check(cache_dir, delegation_files) and verbose:
+    if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     delegations = load_all_delegations(cache_dir, delegation_urls)
     for delegation in delegations:
