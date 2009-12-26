@@ -83,7 +83,7 @@ def cache_delegation(delegation_url, cache_dir):
         return False
 
 def cache_age_check(cache_dir, cached_files):
-    """ Returns True if the mtime of the files in cache dir is > 24hrs."""
+    """ Returns True if the mtime of any files in cache dir is > 24hrs."""
     try:
         os.stat(cache_dir)
     except:
@@ -91,8 +91,9 @@ def cache_age_check(cache_dir, cached_files):
         sys.exit(2)
     for file in cached_files.split(","):
         fstat = os.stat(cache_dir + file)
-    if (time.time() - fstat.st_mtime) > 86400:
-        return True
+        if (time.time() - fstat.st_mtime) > 86400:
+            return True
+    return False
 
 def update_delegation_cache(delegation_urls, cache_dir):
     """ Fetch multiple delegation urls and cache the contents. """
