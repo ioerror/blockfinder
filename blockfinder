@@ -21,7 +21,7 @@ try:
 except ImportError:
      antigravity = None
 
-verbose = False
+verbose = True
 
 # XXX TODO: Set the user agent and allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
@@ -124,10 +124,10 @@ def load_all_delegations(cache_dir, delegation_urls):
     if verbose:
         print "Attempting to load the following urls: " + delegation_urls
     for url in delegation_urls.split():
-        filename = url.rpartition('/')
+        filename = url.rpartition('/')[-1]
         if verbose:
-            print "Attempting to load delegation file: " + filename[-1]
-        delegations.append(load_delegation(cache_dir + filename[-1]))
+            print "Attempting to load delegation file: " + filename
+        delegations.append(load_delegation(cache_dir + filename))
     return delegations
 
 def lookup_country(cc, delegation):
