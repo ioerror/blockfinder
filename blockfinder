@@ -60,34 +60,35 @@ def cache_delegation(delegation_url, cache_dir):
     """ Attempt to cache the contents of a delegation url in our cache dir. """
     try:
         os.stat(cache_dir)
-    except:
-        if verbose:
-            print "Initializing the cache directory..."
-        try:
+    except OSError, e:
+        if e.errno == 2:
+            if verbose:
+                print "Initializing the cache directory..."
             os.mkdir(cache_dir)
-        except:
-            print "Unable to initialize cache directory. Sorry!"
+        else:
+             raise e
+    delegation = ""
+    print "Fetching " + delegation_url
+    delegation = fetch_delegation(delegation_url)
+    tmp = delegation_url.split('/')
+    delegation_file = str(cache_dir) + str(tmp[-1])
     try:
-        delegation = ""
-        print "Fetching " + delegation_url
-        delegation = fetch_delegation(delegation_url)
-        tmp = delegation_url.split('/')
-        delegation_file = str(cache_dir) + str(tmp[-1])
         f = open(delegation_file, 'w')
         f.write(delegation)
-        f.close()
         return True
-    except:
-        print "Unable to fetch or cache delegation"
+    except Exception, e:
+        print repr(e)
         return False
+    finally:
+        f.close()
 
 def cache_is_dated(cache_dir, cached_files):
     """ Returns True if the mtime of any files in cache dir is > 24hrs."""
     try:
         os.stat(cache_dir)
-    except:
+    except OSError, e:
         print "Did you initialize the cache directory?"
-        sys.exit(2)
+        raise e
     for file in cached_files.split(","):
         fstat = os.stat(cache_dir + file)
         if (time.time() - fstat.st_mtime) > 86400:
@@ -112,10 +113,11 @@ def load_delegation(delegation_file):
         f = open(delegation_file, "r")
         delegations = [ dict((k,v) for k,v in zip(keys.split(","), line.split("|")))
                         for line in f.readlines() if not line.startswith("#")]
-        f.close()
         return delegations
-    except:
-        print "It appears that we are missing " + delegation_file
+    except OSError, e:
+        print repr(e)
+    finally:
+        f.close()
 
 def load_all_delegations(cache_dir, delegation_urls):
     """ Load all delegations into memory. """
