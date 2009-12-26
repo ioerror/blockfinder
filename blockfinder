@@ -101,8 +101,10 @@ def update_delegation_cache(cache_dir, delegation_urls):
     for url in delegation_urls.split():
         try:
             cache_delegation(url, cache_dir)
+            return True
         except:
             print "Unable to update delegation for " + url
+            return False
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
