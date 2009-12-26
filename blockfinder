@@ -54,8 +54,7 @@ def fetch_delegation(delegation_url):
     if length == len(page):
         return page
     else:
-        print "We're having an error fetching the right number of bytes!"
-        return page
+        raise Exception("Error fetching the right number of bytes!")
 
 def cache_delegation(delegation_url, cache_dir):
     try:
