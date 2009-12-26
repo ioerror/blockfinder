@@ -40,7 +40,7 @@ def fetch_delegation(delegation_url):
     sys.stdout.write("[" + "." * (int(columns) - 2) + "]")
     sys.stdout.flush()
     sys.stdout.write('\b' * (int(columns) - 2))
-    while 1:
+    while True:
         page += fetcher.read(chunk)
         counter += chunk
         sys.stdout.write('\b')
