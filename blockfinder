@@ -30,7 +30,7 @@ def fetch_delegation(delegation_url):
     length = int(fetcher.headers.get("content-length"))
     if not length:
         raise Exception("Missing content-length header in reply from server.")
-    print "Fetching " + str(length) + " bytes"
+    print "Fetching ", length, " bytes"
     chunk = int(int(length)/(int(columns) -4))
     counter = 0
     page = ""
