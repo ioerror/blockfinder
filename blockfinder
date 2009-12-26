@@ -95,7 +95,7 @@ def cache_age_check(cache_dir, cached_files):
             return True
     return False
 
-def update_delegation_cache(delegation_urls, cache_dir):
+def update_delegation_cache(cache_dir, delegation_urls):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
     for url in delegation_urls.split():
@@ -227,7 +227,7 @@ def main():
 
     # Update and quit of requested
     if update_delegations:
-        update_delegation_cache(delegation_urls, cache_dir)
+        update_delegation_cache(cache_dir, delegation_urls)
         sys.exit(0)
     if not requests:
         print "Nothing to do. Have you requested anything?"
