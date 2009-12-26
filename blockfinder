@@ -108,10 +108,10 @@ def update_delegation_cache(cache_dir, delegation_urls):
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
-    keys = "rir,cc,type,n,nn,asn,status"
+    keys = "rir cc type n nn asn status"
     try:
         f = open(delegation_file, "r")
-        delegations = [ dict((k,v) for k,v in zip(keys.split(","), line.split("|")))
+        delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
                         for line in f.readlines() if not line.startswith("#")]
         return delegations
     except OSError, e:
