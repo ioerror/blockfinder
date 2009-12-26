@@ -21,8 +21,6 @@ try:
 except ImportError:
      antigravity = None
 
-verbose = True
-
 # XXX TODO: Set the user agent and allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch_delegation(delegation_url):
@@ -175,8 +173,9 @@ def main():
         usage()
         sys.exit(2)
 
-    output = None
+    global verbose
     verbose = False
+    output = None
     silent = True
     cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
     update_delegations = False
