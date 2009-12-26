@@ -119,12 +119,10 @@ def load_delegation(delegation_file):
 def load_all_delegations(cache_dir, delegation_urls):
     """ Load all delegations into memory. """
     delegations = []
-    if verbose:
-        print "Attempting to load the following urls: " + delegation_urls
     for url in delegation_urls.split():
         filename = url.rpartition('/')[-1]
         if verbose:
-            print "Attempting to load delegation file: " + filename
+            print "Attempting to load delegation file into memory: " + filename
         delegations.append(load_delegation(cache_dir + filename))
     return delegations
 
@@ -256,7 +254,7 @@ def main():
             print sys.exc_info()
             pass
     if verbose:
-        print "We found approx possible %d entries in our delegation cache." % resultnum
+        print "We found %d possible entries in our delegation cache." % resultnum
         print "We found %d matching entries in our delegation cache." % matchnum
 
 if __name__ == "__main__":
