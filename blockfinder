@@ -110,10 +110,10 @@ def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
     keys = "rir,cc,type,n,nn,asn,status"
     try:
-        os.stat(delegation_file)
         f = open(delegation_file, "r")
         delegations = [ dict((k,v) for k,v in zip(keys.split(","), line.split("|")))
                         for line in f.readlines()if not line.startswith("#")]
+        f.close()
         return delegations
     except:
         print "It appears that we are missing " + delegation_file
