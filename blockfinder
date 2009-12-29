@@ -21,16 +21,18 @@ try:
 except ImportError:
      antigravity = None
 
-# XXX TODO: Set the user agent and allow the use of a proxy
-# Set up a proper Request object, set the user agent and if desired, a proxy
-def update_progress_bar(percent_done):
+def update_progress_bar(percent_done, caption=""):
     """Write a progress bar to the console"""
-    r, c = os.popen('stty size', 'r').read().split()
-    rows, columns = int(r), int(c)
-    eff = columns - 3
-    sys.stdout.write("[" + "=" * int(percent_done*eff) + ">" + "." * (eff - int(percent_done * eff)) +  "]\x1b[G")
+    rows, columns = map(int, os.popen('stty size', 'r').read().split())
+    width = columns - 4 - len(caption)
+    sys.stdout.write("[%s>%s] %s\x1b[G" % (
+                                    "=" * int(percent_done*width),
+                                    "." * (width - int(percent_done * width)),
+                                    caption) )
     sys.stdout.flush()
 
+# XXX TODO: Set the user agent and allow the use of a proxy
+# Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch(url):
     """ Fetch (with progress meter) and return the contents of a url. """
     fetcher = urllib2.urlopen(url)
@@ -39,10 +41,18 @@ def fetch(url):
         raise Exception("Missing content-length header in reply from server.")
     print "Fetching ", length, " bytes"
     ret = ""
+    t_start = time.time()
     while True:
-        update_progress_bar(float(len(ret)) / length)
+        t_delta = time.time() - t_start
+        update_progress_bar(
+            float(len(ret)) / length,
+            "%.2f K/s" % (len(ret) / 1024 / t_delta) )
         tmp = fetcher.read(1024)
         if len(tmp) == 0:
+            if len(ret) != length:
+                raise Exception("Expected %s bytes, only received %s" % (
+                                len(ret), length ))
+            print ""
             return ret
         ret += tmp
 
