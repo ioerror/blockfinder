@@ -33,14 +33,14 @@ def update_progress_bar(percent_done):
 
 def fetch(url):
     """ Fetch (with progress meter) and return the contents of a url. """
-    fetcher = urllib2.urlopen(delegation_url)
+    fetcher = urllib2.urlopen(url)
     length = int(fetcher.headers.get("content-length"))
     if not length:
         raise Exception("Missing content-length header in reply from server.")
     print "Fetching ", length, " bytes"
     ret = ""
     while True:
-        update_progress_bar(float(ret) / length)
+        update_progress_bar(float(len(ret)) / length)
         tmp = fetcher.read(1024)
         if len(tmp) == 0:
             return ret
@@ -89,12 +89,8 @@ def update_delegation_cache(cache_dir, delegation_urls):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
     for url in delegation_urls.split():
-        try:
-            cache_delegation(cache_dir, url)
-            return True
-        except:
-            print "Unable to update delegation for " + url
-            return False
+        cache_delegation(cache_dir, url)
+    return True
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
