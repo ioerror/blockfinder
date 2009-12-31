@@ -133,6 +133,9 @@ def lookup_type(type, delegation):
     """ Return data about a given type in a supplied delegation. """
     return [d for d in delegation if d['type'] == type]
 
+def calculate_subnet(host_count):
+    return 32 - int(floor(log(host_count,2)))
+
 def usage():
     """ Print usage information. """
     print >> sys.stderr, """
