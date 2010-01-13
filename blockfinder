@@ -8,6 +8,7 @@ import os
 import time
 import getopt
 import sys
+from math import *
 
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
@@ -104,7 +105,7 @@ def update_delegation_cache(cache_dir, delegation_urls):
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
-    keys = "rir cc type n nn asn status"
+    keys = "rir cc type n hc asn status"
     try:
         f = open(delegation_file, "r")
         delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
@@ -133,7 +134,7 @@ def lookup_type(type, delegation):
     """ Return data about a given type in a supplied delegation. """
     return [d for d in delegation if d['type'] == type]
 
-def calculate_subnet(host_count):
+def calculate_ipv4_subnet(host_count):
     return 32 - int(floor(log(host_count,2)))
 
 def usage():
@@ -250,8 +251,12 @@ def main():
             for result in results:
                 for request in requests:
                     if result['type'] == request:
-                        matchnum += 1
-                        print result['n']
+                        if request == 'ipv4':
+                            matchnum += 1
+                            print result['n'] + "/" + str(calculate_ipv4_subnet(int(result['hc'])))
+                        else:
+                            matchnum += 1
+                            print result['n']
         except:
             print sys.exc_info()
             pass
