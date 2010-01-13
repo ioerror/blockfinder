@@ -10,6 +10,7 @@ Add support to list all country codes with possible results
 Add support for proxies during updating/fetching
 Add support for a custom "User Agent:" during updating/fetching
 Add CIDR information for all returned ipv6 netblocks (ipv4 is done)
+Verify signatures on delgation information
 
 Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
