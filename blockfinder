@@ -254,6 +254,9 @@ def main():
                         if request == 'ipv4':
                             matchnum += 1
                             print result['n'] + "/" + str(calculate_ipv4_subnet(int(result['hc'])))
+                        elif request == 'ipv6':
+                            matchnum += 1
+                            print result['n'] + "/" + str(result['hc'])
                         else:
                             matchnum += 1
                             print result['n']
