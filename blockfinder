@@ -108,7 +108,7 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
-    keys = "rir cc type n hc asn status"
+    keys = "registry cc type start value date status"
     try:
         f = open(delegation_file, "r")
         delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
@@ -257,13 +257,13 @@ def main():
                     if result['type'] == request:
                         if request == 'ipv4':
                             matchnum += 1
-                            print result['n'] + "/" + str(calculate_ipv4_subnet(int(result['hc'])))
+                            print result['start'] + "/" + str(calculate_ipv4_subnet(int(result['value'])))
                         elif request == 'ipv6':
                             matchnum += 1
-                            print result['n'] + "/" + str(result['hc'])
+                            print result['start'] + "/" + str(result['value'])
                         else:
                             matchnum += 1
-                            print result['n']
+                            print result['start']
         except:
             print sys.exc_info()
             pass
