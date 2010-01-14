@@ -10,7 +10,8 @@ Add support to list all country codes with possible results
 Add support for proxies during updating/fetching
 Add support for a custom "User Agent:" during updating/fetching
 Verify signatures on delgation information
-
+Add an option to print the whois description(seems the most complete).
+Add the capacity to use sqlite.
 Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
 Refactor updating/fetching animation
