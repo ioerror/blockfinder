@@ -14,3 +14,4 @@ Add the capacity to use sqlite.
 Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
 Refactor updating/fetching animation
+Benchmark pickle vs raw vs sqlite running times
