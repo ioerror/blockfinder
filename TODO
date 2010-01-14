@@ -8,7 +8,6 @@ Add country name support
     eg: "Burma" or "mm"
 Add support to list all country codes with possible results
 Add support for proxies during updating/fetching
-Add support for a custom "User Agent:" during updating/fetching
 Verify signatures on delgation information
 Add an option to print the whois description(seems the most complete).
 Add the capacity to use sqlite.

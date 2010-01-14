@@ -34,13 +34,16 @@ def update_progress_bar(percent_done, caption=""):
 
 # XXX TODO: Set the user agent and allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
-def fetch(url):
+def fetch(url,useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
-    fetcher = urllib2.urlopen(url)
+    req =urllib2.Request(url)
+    req.add_header('User-agent', useragent)
+    #req.set_proxy(host, type)
+    fetcher = urllib2.urlopen(req)
     length = int(fetcher.headers.get("content-length"))
     if not length:
         raise Exception("Missing content-length header in reply from server.")
-    print "Fetching ", length, " bytes"
+    print "Fetching ", str (round(float(length/1024),2)) , " kilobytes"
     ret = ""
     t_start = time.time()
     while True:
@@ -57,7 +60,7 @@ def fetch(url):
             return ret
         ret += tmp
 
-def cache_delegation(cache_dir, delegation_url):
+def cache_delegation(cache_dir, delegation_url, useragent):
     """ Attempt to cache the contents of a delegation url in our cache dir. """
     try:
         os.stat(cache_dir)
@@ -70,7 +73,7 @@ def cache_delegation(cache_dir, delegation_url):
              raise e
     delegation = ""
     print "Fetching " + delegation_url
-    delegation = fetch(delegation_url)
+    delegation = fetch(delegation_url,useragent)
     tmp = delegation_url.split('/')
     delegation_file = str(cache_dir) + str(tmp[-1])
     try:
@@ -88,7 +91,7 @@ def cache_is_dated(cache_dir, cached_files):
     try:
         os.stat(cache_dir)
     except OSError, e:
-        print "Did you initialize the cache directory?"
+        print "\nDid you initialize the cache directory?\n"
         raise e
     for file in cached_files:
         fstat = os.stat(cache_dir + file)
@@ -96,11 +99,11 @@ def cache_is_dated(cache_dir, cached_files):
             return True
     return False
 
-def update_delegation_cache(cache_dir, delegation_urls):
+def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
     for url in delegation_urls.split():
-        cache_delegation(cache_dir, url)
+        cache_delegation(cache_dir, url,useragent)
     return True
 
 def load_delegation(delegation_file):
@@ -194,6 +197,7 @@ def main():
     update_delegations = False
     requests = []
     country = ""
+    useragent = "Mozilla/5.0"
     for o, a in opts:
         if o == "-v":
             verbose = True
@@ -203,7 +207,7 @@ def main():
         elif o in ("-c", "--cachedir"):
             cache_dir = a
         elif o in ("-u", "--useragent"):
-            pass
+            useragent=a
         elif o in ("-p", "--progress"):
             progress = True
         elif o in ("-s", "--silent"):
@@ -226,7 +230,7 @@ def main():
 
     # Update and quit of requested
     if update_delegations:
-        update_delegation_cache(cache_dir, delegation_urls)
+        update_delegation_cache(cache_dir, delegation_urls,useragent)
         sys.exit(0)
     if not requests:
         print "Nothing to do. Have you requested anything?"
