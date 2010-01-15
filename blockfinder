@@ -102,10 +102,13 @@ def cache_is_dated(cache_dir, cached_files):
 
 def pickle_is_dated(pickled_cache):
     """ Returns True if the mtime of our pickle is > 24hrs."""
-    fstat = os.stat(pickled_cache)
-    if (time.time() - fstat.st_mtime) > 86400:
+    try:
+        fstat = os.stat(pickled_cache)
+        if (time.time() - fstat.st_mtime) > 86400:
             return True
-    return False
+        return False
+    except OSError, e:
+        return True
 
 def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
@@ -140,9 +143,12 @@ def load_all_delegations(cache_dir, delegation_urls):
 def load_pickled_delegations(pickle_file):
     """ Load all delegations from a serialized file and restore their place. """
     delegations = []
-    pickled_cache = open(pickle_file)
-    delegations = pickle.load(pickled_cache)
-    pickled_cache.close()
+    try:
+        pickled_cache = open(pickle_file)
+        delegations = pickle.load(pickled_cache)
+        pickled_cache.close()
+    except IOError, e:
+        return delegations
     return delegations
 
 def save_pickled_delegations(pickle_file, delegations):
@@ -150,7 +156,7 @@ def save_pickled_delegations(pickle_file, delegations):
     pickled_cache = pickle_file
     pickled_cache_tmp = os.path.join(pickled_cache + ".tmp")
     f = open(pickled_cache_tmp, 'wb')
-    pickle.dump(delegations, f, -1)
+    pickle.dump(delegations, f, 2)
     f.close()
     os.rename(pickled_cache_tmp, pickled_cache)
 
