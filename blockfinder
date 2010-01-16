@@ -8,7 +8,6 @@ import os
 import time
 import getopt
 import sys
-import cPickle as pickle
 from math import *
 
 __program__ = 'blockfinder'
@@ -33,7 +32,7 @@ def update_progress_bar(percent_done, caption=""):
                                     caption) )
     sys.stdout.flush()
 
-# XXX TODO: Set the user agent and allow the use of a proxy
+# XXX TODO:allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch(url,useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
@@ -100,16 +99,6 @@ def cache_is_dated(cache_dir, cached_files):
             return True
     return False
 
-def pickle_is_dated(pickled_cache):
-    """ Returns True if the mtime of our pickle is > 24hrs."""
-    try:
-        fstat = os.stat(pickled_cache)
-        if (time.time() - fstat.st_mtime) > 86400:
-            return True
-        return False
-    except OSError, e:
-        return True
-
 def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
@@ -139,26 +128,6 @@ def load_all_delegations(cache_dir, delegation_urls):
             print "Attempting to load delegation file into memory: " + filename
         delegations.append(load_delegation(cache_dir + filename))
     return delegations
-
-def load_pickled_delegations(pickle_file):
-    """ Load all delegations from a serialized file and restore their place. """
-    delegations = []
-    try:
-        pickled_cache = open(pickle_file)
-        delegations = pickle.load(pickled_cache)
-        pickled_cache.close()
-    except IOError, e:
-        return delegations
-    return delegations
-
-def save_pickled_delegations(pickle_file, delegations):
-    """ Flush serialized delegation data to file. """
-    pickled_cache = pickle_file
-    pickled_cache_tmp = os.path.join(pickled_cache + ".tmp")
-    f = open(pickled_cache_tmp, 'wb')
-    pickle.dump(delegations, f, 2)
-    f.close()
-    os.rename(pickled_cache_tmp, pickled_cache)
 
 def lookup_country(cc, delegation):
     """ Return data about a given county code in a supplied delegation. """
@@ -267,19 +236,11 @@ def main():
         print "Nothing to do. Have you requested anything?"
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
-    pickled_cache = os.path.join(cache_dir, "pickled_delegation")
     # Check our cache age and warn if it's aged
     total_delegations = 0
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
-    if pickle_is_dated(pickled_cache):
-        if verbose:
-            print "Reparsing delegation cache"
-        delegations = load_all_delegations(cache_dir, delegation_urls)
-    else:
-        if verbose:
-            print "Loading pickled data..."
-        delegations = load_pickled_delegations(pickled_cache)
+    delegations = load_all_delegations(cache_dir, delegation_urls)
     for delegation in delegations:
         total_delegations += len(delegation)
     if verbose:
@@ -309,10 +270,6 @@ def main():
     if verbose:
         print "We found %d possible entries in our delegation cache." % resultnum
         print "We found %d matching entries in our delegation cache." % matchnum
-    if pickle_is_dated(pickled_cache):
-        if verbose:
-            print "Attempting to pickle delegation data..."
-        save_pickled_delegations(pickled_cache, delegations)
 
 if __name__ == "__main__":
     main()
