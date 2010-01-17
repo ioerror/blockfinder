@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 # For the people of Smubworld!
-# dave *hates* spaces with a passion.
 import urllib2
 import os
 import time
@@ -118,12 +117,19 @@ def insert_into_sql_database(delegations,cache_dir):
 	""" inserts delegations into the sqlite database"""
 	conn = sqlite3.connect(cache_dir +"sqlitedb")
 	cursor = conn.cursor()
-	for something in delegations:
-		for delegation in something:
-			registry = str(delegation['registry'])
-			if registry.isdigit() ==False and str (delegation['cc']) !="*":
-				text = """INSERT INTO """ + delegation['type'] + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
-				data = [delegation['registry'], delegation['cc'], delegation['start'], delegation['value'], delegation['date'], delegation['status'] ]
+	table =""
+	for delegation in delegations:
+		for entry in delegation:
+			registry = str(entry['registry'])
+			if registry.isdigit() ==False and str (entry['cc']) !="*":
+				if  entry['type'] == "ipv6":
+					table = "ipv6"
+				if entry['type'] == "ipv4":
+					table = "ipv4"
+				if entry['type'] == "asn":
+					table = "asn"
+				text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
+				data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
 				cursor.execute(text, data  )
 	conn.commit()
 	cursor.close()
@@ -347,7 +353,7 @@ def main():
         else:
             assert False, "Unhandled option; Sorry!"
 
-    # Update and quit of requested
+    # Update and quit.
     if update_delegations:
 		update_delegation_cache(cache_dir,delegation_urls,useragent)
 		if verbose:
@@ -364,7 +370,6 @@ def main():
     total_delegations = 0
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
-
     for request in requests:
     	use_sql_database(request, country, cache_dir)
 
