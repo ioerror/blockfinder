@@ -15,7 +15,7 @@ __url__ = 'http://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>'
 __copyright__ = 'Copyright (c) 2009'
 __license__ = 'See LICENSE for licensing information'
-__version__ = '3.2'
+__version__ = '3.141'
 
 try:
     from future import antigravity
@@ -102,9 +102,9 @@ def create_sql_database(cache_dir):
     """creates a sqlite database and if there is already an existing one it deletes it.
     ftp://ftp.arin.net/pub/stats/arin/README"""
     try:
-		os.remove(cache_dir +"sqlitedb")
+        os.remove(cache_dir +"sqlitedb")
     except:
-		pass
+        pass
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
     cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
@@ -114,130 +114,130 @@ def create_sql_database(cache_dir):
     cursor.close()
 
 def insert_into_sql_database(delegations,cache_dir):
-	""" inserts delegations into the sqlite database"""
-	conn = sqlite3.connect(cache_dir +"sqlitedb")
-	cursor = conn.cursor()
-	table =""
-	for delegation in delegations:
-		for entry in delegation:
-			registry = str(entry['registry'])
-			if registry.isdigit() ==False and str (entry['cc']) !="*":
-				if  entry['type'] == "ipv6":
-					table = "ipv6"
-				if entry['type'] == "ipv4":
-					table = "ipv4"
-				if entry['type'] == "asn":
-					table = "asn"
-				text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
-				data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
-				cursor.execute(text, data  )
-	conn.commit()
-	cursor.close()
+    """ inserts delegations into the sqlite database"""
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
+    table =""
+    for delegation in delegations:
+        for entry in delegation:
+            registry = str(entry['registry'])
+            if registry.isdigit() ==False and str (entry['cc']) !="*":
+                if  entry['type'] == "ipv6":
+                    table = "ipv6"
+                if entry['type'] == "ipv4":
+                    table = "ipv4"
+                if entry['type'] == "asn":
+                    table = "asn"
+                text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
+                data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
+                cursor.execute(text, data  )
+    conn.commit()
+    cursor.close()
 
 def get_total_delegations_from_db(cache_dir):
-	"""returns count of the n.o. of entries in the ipv4 +ipv6 + asn tables"""
-	conn = sqlite3.connect(cache_dir +"sqlitedb")
-	cursor = conn.cursor()
-	count =0
-	table_names =["ipv4", "ipv6", "asn"]
-	for table in table_names:
-		cursor.execute("""select count (*)  from """ + table)
-		count = count + int (cursor.fetchone()[0] )
-	cursor.close()
-	return count
+    """returns count of the n.o. of entries in the ipv4 +ipv6 + asn tables"""
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
+    count =0
+    table_names =["ipv4", "ipv6", "asn"]
+    for table in table_names:
+        cursor.execute("""select count (*)  from """ + table)
+        count = count + int (cursor.fetchone()[0] )
+    cursor.close()
+    return count
 
 def get_possible_match_entries(cc,cache_dir):
-	""" get the count of 'possible' matching delegation entries"""
-	conn = sqlite3.connect(cache_dir +"sqlitedb")
-	cursor = conn.cursor()
-	count =0
-	table_names =["ipv4", "ipv6", "asn"]
-	for table in table_names:
-		cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
-		count = count + int (cursor.fetchone()[0] )
-	cursor.close()
-	return count
+    """ get the count of 'possible' matching delegation entries"""
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
+    count =0
+    table_names =["ipv4", "ipv6", "asn"]
+    for table in table_names:
+        cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
+        count = count + int (cursor.fetchone()[0] )
+    cursor.close()
+    return count
 
 def use_sql_database(request, cc, cache_dir):
-	"""now with added magic!"""
-	conn = sqlite3.connect(cache_dir +"sqlitedb")
-	cursor = conn.cursor()
-	if verbose:
-		print "We have %d entries in our delegation cache." %get_total_delegations_from_db(cache_dir)
-	text ="""select start,value from """ + request + """ where cc=?"""
-	cc = (cc,)
-	cursor.execute(text,cc)
-	for row in cursor:
-		if request == "ipv4":
-			print str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1])))
-		elif request == "ipv6":
-			print str(row[0]) + "/" + str(int(row[1]))
-		else:
-			print str(int(row[0]) )
-	if verbose:
-		 print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
-		 cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
-		 print "We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] )
-	cursor.close()
+    """now with added magic!"""
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
+    if verbose:
+        print "We have %d entries in our delegation cache." %get_total_delegations_from_db(cache_dir)
+    text ="""select start,value from """ + request + """ where cc=?"""
+    cc = (cc,)
+    cursor.execute(text,cc)
+    for row in cursor:
+        if request == "ipv4":
+            print str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1])))
+        elif request == "ipv6":
+            print str(row[0]) + "/" + str(int(row[1]))
+        else:
+            print str(int(row[0]) )
+    if verbose:
+         print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
+         cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
+         print "We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] )
+    cursor.close()
 
 def get_md5_from_delegation_md5_file(cache_dir, delegation_file):
-	""" Returns the md5sum from the delegation md5 file (if it exists)"""
-	checksum =""
-	try:
-		f = open(cache_dir + delegation_file +".md5", "r")
-		checksum = f.read()
-		f.close()
-		if delegation_file == "delegated-afrinic-latest":
-			pos =  checksum.find(" ")
-			assert pos <len(checksum)
-			checksum = str ( checksum[:pos] )
-		else:
-			pos =  checksum.find("=") +2
-			assert pos <len(checksum)
-			checksum = str ( checksum[pos:-1] )
-	except Exception, e:
-			print repr(e)
-	return checksum
+    """ Returns the md5sum from the delegation md5 file (if it exists)"""
+    checksum =""
+    try:
+        f = open(cache_dir + delegation_file +".md5", "r")
+        checksum = f.read()
+        f.close()
+        if delegation_file == "delegated-afrinic-latest":
+            pos =  checksum.find(" ")
+            assert pos <len(checksum)
+            checksum = str ( checksum[:pos] )
+        else:
+            pos =  checksum.find("=") +2
+            assert pos <len(checksum)
+            checksum = str ( checksum[pos:-1] )
+    except Exception, e:
+            print repr(e)
+    return checksum
 
 def verify_delegation_file(cache_dir, delegation_file):
-	"""compares the delegation file md5sum to that of the provided md5sum
-	   returns True if they match otherwise returns False"""
-	checksum = ""
-	checksum_of_file=""
-	try:
-		f = open(cache_dir + delegation_file, "rb")
-		checksum_of_file = str (hashlib.md5(f.read()).hexdigest() )
-		f.close()
-	except Exception, e:
-		print repr(e)
-	checksum = get_md5_from_delegation_md5_file(cache_dir,delegation_file)
-	if checksum != checksum_of_file:
-		return False
-	if checksum == checksum_of_file and checksum!="":
-		return True
+    """compares the delegation file md5sum to that of the provided md5sum
+       returns True if they match otherwise returns False"""
+    checksum = ""
+    checksum_of_file=""
+    try:
+        f = open(cache_dir + delegation_file, "rb")
+        checksum_of_file = str (hashlib.md5(f.read()).hexdigest() )
+        f.close()
+    except Exception, e:
+        print repr(e)
+    checksum = get_md5_from_delegation_md5_file(cache_dir,delegation_file)
+    if checksum != checksum_of_file:
+        return False
+    if checksum == checksum_of_file and checksum!="":
+        return True
 
 def verify_cache(cache_dir, delegation_files):
-	""" if in verbose mode prints the result of checking the checksum of the
-		delegation files """
-	for file in delegation_files:
-		if verbose:
-			print "verifying " + file
-		if verify_delegation_file(cache_dir,file):
-			if verbose:
-				print "the md5 checksum of " + file + " *matches* the provided checksum"
-		else:
-			if verbose:
-				print "the md5 checksum of " + file + " does *not* match the provided checksum"
+    """ if in verbose mode prints the result of checking the checksum of the
+        delegation files """
+    for file in delegation_files:
+        if verbose:
+            print "verifying " + file
+        if verify_delegation_file(cache_dir,file):
+            if verbose:
+                print "the md5 checksum of " + file + " *matches* the provided checksum"
+        else:
+            if verbose:
+                print "the md5 checksum of " + file + " does *not* match the provided checksum"
 
 def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
     for url in delegation_urls.split():
-		cache_delegation(cache_dir, url+".md5",useragent)
-		if verify_delegation_file(cache_dir, url.rpartition('/')[-1]):
-			pass
-		else:
-			cache_delegation(cache_dir, url,useragent)
+        cache_delegation(cache_dir, url+".md5",useragent)
+        if verify_delegation_file(cache_dir, url.rpartition('/')[-1]):
+            pass
+        else:
+            cache_delegation(cache_dir, url,useragent)
     return True
 
 def load_delegation(delegation_file):
@@ -355,13 +355,13 @@ def main():
 
     # Update and quit.
     if update_delegations:
-		update_delegation_cache(cache_dir,delegation_urls,useragent)
-		if verbose:
-			verify_cache(cache_dir, delegation_files)
-		delegations = load_all_delegations(cache_dir, delegation_urls)
-		create_sql_database(cache_dir)
-		insert_into_sql_database(delegations, cache_dir)
-		sys.exit(0)
+        update_delegation_cache(cache_dir,delegation_urls,useragent)
+        if verbose:
+            verify_cache(cache_dir, delegation_files)
+        delegations = load_all_delegations(cache_dir, delegation_urls)
+        create_sql_database(cache_dir)
+        insert_into_sql_database(delegations, cache_dir)
+        sys.exit(0)
     if not requests:
         print "Nothing to do. Have you requested anything?"
         print "Example usage: blockfinder -v --ipv4 -t mm"
@@ -371,7 +371,7 @@ def main():
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     for request in requests:
-    	use_sql_database(request, country, cache_dir)
+        use_sql_database(request, country, cache_dir)
 
 if __name__ == "__main__":
     main()
