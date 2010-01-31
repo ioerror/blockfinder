@@ -283,7 +283,7 @@ Understood options (not all of which are implemented yet):
     -4, --ipv4          Search IPv4 allocations
     -6, --ipv6          Search IPv6 allocation
     -a, --asn           Search ASN allocations
-    -t, --nationstate CC  Set the country to search (given as a two-letter code)
+    -t, --nation-state CC  Set the country to search (given as a two-letter code)
 
 At least one of -t or -i is required, and when in -t mode, at least one of -4,
 -6, and -a is required in order to do anything sensible.
@@ -295,7 +295,7 @@ def main():
         opts, args = getopt.getopt(sys.argv[1:],
                                    "vhc:u:pso:46at:i",
                                    ["verbose", "help", "cachedir=", "useragent=", "progress",
-                                    "silent", "output=", "ipv4", "ipv6", "asn", "country=",
+                                    "silent", "output=", "ipv4", "ipv6", "asn", "nation-state=",
                                     "initialize-delegation"])
     except getopt.GetoptError, err:
         print str(err)
