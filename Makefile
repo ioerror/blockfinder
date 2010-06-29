@@ -1,10 +1,10 @@
 EXEC =blockfinder
 
-install: all
+install:
 	test -d $(DESTDIR)/usr/bin/ || mkdir -p $(DESTDIR)/usr/bin/
 	cp $(EXEC) $(DESTDIR)/usr/bin/
 
-uninstall: all
+uninstall:
 	rm $(DESTDIR)/usr/bin/$(EXEC)
 
 deb-src:
