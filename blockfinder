@@ -7,7 +7,7 @@ import os
 import time
 import getopt
 import sys
-from math import *
+from math import floor, log
 import sqlite3
 import hashlib
 __program__ = 'blockfinder'
@@ -20,7 +20,7 @@ __version__ = '3.141'
 try:
     from future import antigravity
 except ImportError:
-     antigravity = None
+    antigravity = None
 
 def update_progress_bar(percent_done, caption=""):
     """Write a progress bar to the console"""
@@ -36,7 +36,7 @@ def update_progress_bar(percent_done, caption=""):
 # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch(url,useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
-    req =urllib2.Request(url)
+    req = urllib2.Request(url)
     req.add_header('User-agent', useragent)
     #req.set_proxy(host, type)
     fetcher = urllib2.urlopen(req)
@@ -70,7 +70,7 @@ def cache_delegation(cache_dir, delegation_url, useragent):
                 print "Initializing the cache directory..."
             os.mkdir(cache_dir)
         else:
-             raise e
+            raise e
     delegation = ""
     print "Fetching " + delegation_url
     delegation = fetch(delegation_url,useragent)
@@ -117,11 +117,11 @@ def insert_into_sql_database(delegations,cache_dir):
     """ inserts delegations into the sqlite database"""
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
-    table =""
+    table = ""
     for delegation in delegations:
         for entry in delegation:
             registry = str(entry['registry'])
-            if registry.isdigit() ==False and str (entry['cc']) !="*":
+            if not registry.isdigit() and str (entry['cc']) !="*":
                 if  entry['type'] == "ipv6":
                     table = "ipv6"
                 if entry['type'] == "ipv4":
@@ -138,11 +138,11 @@ def get_total_delegations_from_db(cache_dir):
     """returns count of the n.o. of entries in the ipv4 +ipv6 + asn tables"""
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
-    count =0
-    table_names =["ipv4", "ipv6", "asn"]
+    count = 0
+    table_names = ["ipv4", "ipv6", "asn"]
     for table in table_names:
         cursor.execute("""select count (*)  from """ + table)
-        count = count + int (cursor.fetchone()[0] )
+        count += int (cursor.fetchone()[0] )
     cursor.close()
     return count
 
@@ -150,11 +150,11 @@ def get_possible_match_entries(cc,cache_dir):
     """ get the count of 'possible' matching delegation entries"""
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
-    count =0
+    count = 0
     table_names =["ipv4", "ipv6", "asn"]
     for table in table_names:
         cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
-        count = count + int (cursor.fetchone()[0] )
+        count += int (cursor.fetchone()[0] )
     cursor.close()
     return count
 
@@ -175,35 +175,35 @@ def use_sql_database(request, cc, cache_dir):
         else:
             print str(int(row[0]) )
     if verbose:
-         print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
-         cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
-         print "We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] )
+        print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
+        cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
+        print "We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] )
     cursor.close()
 
 def get_md5_from_delegation_md5_file(cache_dir, delegation_file):
     """ Returns the md5sum from the delegation md5 file (if it exists)"""
-    checksum =""
+    checksum = ""
     try:
         f = open(cache_dir + delegation_file +".md5", "r")
         checksum = f.read()
         f.close()
         if delegation_file == "delegated-afrinic-latest":
             pos =  checksum.find(" ")
-            assert pos <len(checksum)
+            assert pos < len(checksum)
             checksum = str ( checksum[:pos] )
         else:
             pos =  checksum.find("=") +2
-            assert pos <len(checksum)
+            assert pos < len(checksum)
             checksum = str ( checksum[pos:-1] )
     except Exception, e:
-            print repr(e)
+        print repr(e)
     return checksum
 
 def verify_delegation_file(cache_dir, delegation_file):
     """compares the delegation file md5sum to that of the provided md5sum
        returns True if they match otherwise returns False"""
     checksum = ""
-    checksum_of_file=""
+    checksum_of_file = ""
     try:
         f = open(cache_dir + delegation_file, "rb")
         checksum_of_file = str (hashlib.md5(f.read()).hexdigest() )
@@ -213,7 +213,7 @@ def verify_delegation_file(cache_dir, delegation_file):
     checksum = get_md5_from_delegation_md5_file(cache_dir,delegation_file)
     if checksum != checksum_of_file:
         return False
-    if checksum == checksum_of_file and checksum!="":
+    if checksum == checksum_of_file and checksum != "":
         return True
 
 def verify_cache(cache_dir, delegation_files):
@@ -308,14 +308,14 @@ def main():
     silent = True
     cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
     update_delegations = False
-    delegation_urls="""
+    delegation_urls = """
         ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
         ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
         ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
         ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
         ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
     """
-    delegation_files=[]
+    delegation_files = []
     for url in delegation_urls.split():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
@@ -332,7 +332,7 @@ def main():
         elif o in ("-c", "--cachedir"):
             cache_dir = a
         elif o in ("-u", "--useragent"):
-            useragent=a
+            useragent = a
         elif o in ("-p", "--progress"):
             progress = True
         elif o in ("-s", "--silent"):
@@ -367,7 +367,6 @@ def main():
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
     # Check our cache age and warn if it's aged
-    total_delegations = 0
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     for request in requests:
