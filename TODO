@@ -1,3 +1,4 @@
+Add country-code re-init code and progress meter
 Add manpage
 Add support for proxies during updating/fetching
 Add GeoIP support
