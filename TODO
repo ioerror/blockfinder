@@ -1,6 +1,7 @@
 Fix country code searching code
     It appears to be broken for "korea"
 Add country-code re-init code and progress meter
+    When creating or refreshng the cache, we should display progress
 Add manpage
 Add support for proxies during updating/fetching
 Add GeoIP support
