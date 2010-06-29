@@ -10,6 +10,7 @@ import sys
 from math import floor, log
 import sqlite3
 import hashlib
+from xml.dom import minidom
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>'
@@ -40,9 +41,10 @@ def fetch(url,useragent):
     req.add_header('User-agent', useragent)
     #req.set_proxy(host, type)
     fetcher = urllib2.urlopen(req)
-    length = int(fetcher.headers.get("content-length"))
-    if not length:
+    length_header = fetcher.headers.get("content-length")
+    if length_header == None:
         raise Exception("Missing content-length header in reply from server.")
+    length = int(length_header)
     print "Fetching ", str (round(float(length/1024),2)) , " kilobytes"
     ret = ""
     t_start = time.time()
@@ -265,6 +267,41 @@ def load_all_delegations(cache_dir, delegation_urls):
 def calculate_ipv4_subnet(host_count):
     return 32 - int(floor(log(host_count,2)))
 
+def download_country_code_file(cache_dir, useragent):
+    """ Download and save the latest opencountrycode XML file """
+    # Google frontend will not return content-length for some reason...
+    url = "http://opencountrycodes.appspot.com/xml"
+    ul = urllib2.urlopen(url)
+    xml = ul.read()
+    try:
+        f = open(cache_dir + "countrycodes.xml",'w')
+        f.write(xml)
+        f.close()
+        return True
+    except Exception,e:
+        print repr(e)
+        return False
+
+def build_country_code_dictionary(cache_dir):
+    """ Return a dictionary mapping country name to the country code"""
+    map = {}
+    xml_file = str(cache_dir) + "countrycodes.xml"
+    clist = minidom.parse(xml_file)
+    for country in clist.getElementsByTagName("country"):
+        code = country.attributes["code"]
+        name = country.attributes["name"]
+        map[name.value] = code.value
+    return map
+
+def get_country_code_from_name(cache_dir,country_name):
+    """ Return the country code for a given country name. """
+    map = build_country_code_dictionary(cache_dir)
+    for name,code in map.iteritems():
+        if name.lower() == country_name.lower():
+            return code
+    return None
+
+
 def usage():
     """ Print usage information. """
     print >> sys.stderr, """
@@ -283,7 +320,8 @@ Understood options (not all of which are implemented yet):
     -4, --ipv4          Search IPv4 allocations
     -6, --ipv6          Search IPv6 allocation
     -a, --asn           Search ASN allocations
-    -t, --nationstate CC  Set the country to search (given as a two-letter code)
+    -t, --nation-state CC  Set the country to search (given as a two-letter code)
+    -n, --country-name "Costa Rica"  Set country to search (full name)
 
 At least one of -t or -i is required, and when in -t mode, at least one of -4,
 -6, and -a is required in order to do anything sensible.
@@ -293,10 +331,10 @@ def main():
     """ Where the magic starts. """
     try:
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "vhc:u:pso:46at:i",
+                                   "vhc:u:pso:46at:n:i",
                                    ["verbose", "help", "cachedir=", "useragent=", "progress",
-                                    "silent", "output=", "ipv4", "ipv6", "asn", "country=",
-                                    "initialize-delegation"])
+                                    "silent", "output=", "ipv4", "ipv6", "asn", "nation-state=",
+                                    "country-name", "initialize-delegation"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -323,6 +361,10 @@ def main():
     requests = []
     country = ""
     useragent = "Mozilla/5.0"
+
+    if not os.path.exists(cache_dir + "countrycodes.xml"):
+        download_country_code_file(cache_dir,useragent)
+
     for o, a in opts:
         if o == "-v":
             verbose = True
@@ -348,6 +390,8 @@ def main():
         # XXX TODO: This should be a positional argument as it's the only manditory one...
         elif o in ("-t", "--nation-state"):
             country = a.upper()
+        elif o in ("-n", "--country-name"):
+            country = get_country_code_from_name(cache_dir,a)
         elif o in ("-i", "--initialize-delegations"):
             update_delegations = True
         else:
@@ -369,6 +413,8 @@ def main():
     # Check our cache age and warn if it's aged
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
+    if verbose:
+        print "Using country code %s" % country
     for request in requests:
         use_sql_database(request, country, cache_dir)
 
