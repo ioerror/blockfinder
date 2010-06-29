@@ -14,9 +14,9 @@ from xml.dom import minidom
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>'
-__copyright__ = 'Copyright (c) 2009'
+__copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
-__version__ = '3.141'
+__version__ = '3.1415'
 
 try:
     from future import antigravity
