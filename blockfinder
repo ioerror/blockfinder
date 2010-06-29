@@ -410,11 +410,15 @@ def main():
         print "Nothing to do. Have you requested anything?"
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
+    if not country:
+        print "It appears you haven't selected a country."
+        print "Attempted to use country code: %s" % country
+        sys.exit(1)
     # Check our cache age and warn if it's aged
     if cache_is_dated(cache_dir, delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     if verbose:
-        print "Using country code %s" % country
+        print "Using country code: %s" % country
     for request in requests:
         use_sql_database(request, country, cache_dir)
 
