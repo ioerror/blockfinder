@@ -1,0 +1,12 @@
+Source: blockfinder
+Priority: extra
+Section: comm
+Maintainer: Jacob Appelbaum <jacob@appelbaum.net>
+Standards-Version: 3.8.4.0
+
+Package: blockfinder
+Architecture: any
+Depends: ${shlibs:Depends}, python2.6
+Description: Blockfinder enumerates network information for countries
+ Blockfinder enumerates network information for countries
+ .
