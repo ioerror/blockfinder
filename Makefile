@@ -1,5 +1,8 @@
 EXEC =blockfinder
 
+default:
+	echo "This is a python program and doesn't compile!"
+
 install:
 	test -d $(DESTDIR)/usr/bin/ || mkdir -p $(DESTDIR)/usr/bin/
 	cp $(EXEC) $(DESTDIR)/usr/bin/
