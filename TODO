@@ -1,14 +1,15 @@
+Add manpage
+Add support for proxies during updating/fetching
 Add GeoIP support
     Include the free database (and an update feature)
     Optionally allow for an arbitrary custom database
 Add geoip database inversion
     Optionally combine the results with delegation information to produce more
     accurate netblocks
-Fix country xml download - content-length verify and check for stale cache
+Fix country xml download
+    content-length verify and check for stale cache
 Add support to list all country codes with possible results
-Add support for proxies during updating/fetching
 Add an option to print the whois description(seems the most complete).
 Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
 Refactor updating/fetching animation
-Add manpage
