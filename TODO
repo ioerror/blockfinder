@@ -1,3 +1,5 @@
+Fix country code searching code
+    It appears to be broken for "korea"
 Add country-code re-init code and progress meter
 Add manpage
 Add support for proxies during updating/fetching
@@ -14,3 +16,4 @@ Add an option to print the whois description(seems the most complete).
 Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
 Refactor updating/fetching animation
+Add system wide cache_dir to ease blockfinder use on multi user systems
