@@ -294,9 +294,9 @@ def build_country_code_dictionary(cache_dir):
 def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
     map_co = build_country_code_dictionary(cache_dir)
-    answer =  [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
-    if len(answer) > 0:
-        return answer[0]
+    cc_code =  [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
+    if len(cc_code) > 0:
+        return cc_code[0]
 
 def usage():
     """ Print usage information. """
