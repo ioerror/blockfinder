@@ -284,19 +284,19 @@ def download_country_code_file(cache_dir, useragent):
 
 def build_country_code_dictionary(cache_dir):
     """ Return a dictionary mapping country name to the country code"""
-    map = {}
+    map_co = {}
     xml_file = str(cache_dir) + "countrycodes.xml"
     clist = minidom.parse(xml_file)
     for country in clist.getElementsByTagName("country"):
         code = country.attributes["code"]
         name = country.attributes["name"]
-        map[name.value] = code.value
-    return map
+        map_co[name.value] = code.value
+    return map_co
 
-def get_country_code_from_name(cache_dir,country_name):
+def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
-    map = build_country_code_dictionary(cache_dir)
-    for name,code in map.iteritems():
+    map_co = build_country_code_dictionary(cache_dir)
+    for name, code in map_co.iteritems():
         if name.lower() == country_name.lower():
             return code
     return None
