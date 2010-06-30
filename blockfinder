@@ -417,7 +417,9 @@ def main():
     if verbose:
         print "Using country code: %s" % country
     for request in requests:
-        use_sql_database(request, country, cache_dir)
+        try:
+            use_sql_database(request, country, cache_dir)
+        except IOError: sys.exit()
 
 if __name__ == "__main__":
     main()
