@@ -35,7 +35,7 @@ def update_progress_bar(percent_done, caption=""):
 
 # XXX TODO:allow the use of a proxy
 # Set up a proper Request object, set the user agent and if desired, a proxy
-def fetch(url,useragent):
+def fetch(url, useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
     req = urllib2.Request(url)
     req.add_header('User-agent', useragent)
@@ -124,7 +124,7 @@ def insert_into_sql_database(delegations,cache_dir):
         for entry in delegation:
             registry = str(entry['registry'])
             if not registry.isdigit() and str (entry['cc']) !="*":
-                if  entry['type'] == "ipv6":
+                if entry['type'] == "ipv6":
                     table = "ipv6"
                 if entry['type'] == "ipv4":
                     table = "ipv4"
@@ -175,7 +175,7 @@ def use_sql_database(request, cc, cache_dir):
         elif request == "ipv6":
             print str(row[0]) + "/" + str(int(row[1]))
         else:
-            print str(int(row[0]) )
+            print str(int(row[0]))
     if verbose:
         print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
         cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
@@ -186,17 +186,15 @@ def get_md5_from_delegation_md5_file(cache_dir, delegation_file):
     """ Returns the md5sum from the delegation md5 file (if it exists)"""
     checksum = ""
     try:
-        f = open(cache_dir + delegation_file +".md5", "r")
+        f = open(cache_dir + delegation_file + ".md5", "r")
         checksum = f.read()
         f.close()
         if delegation_file == "delegated-afrinic-latest":
             pos =  checksum.find(" ")
-            assert pos < len(checksum)
-            checksum = str ( checksum[:pos] )
+            checksum = str (checksum[:pos])
         else:
-            pos =  checksum.find("=") +2
-            assert pos < len(checksum)
-            checksum = str ( checksum[pos:-1] )
+            pos = checksum.find("=") +2
+            checksum = str (checksum[pos:-1])
     except Exception, e:
         print repr(e)
     return checksum
@@ -235,7 +233,7 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
     for url in delegation_urls.split():
-        cache_delegation(cache_dir, url+".md5",useragent)
+        cache_delegation(cache_dir, url + ".md5",useragent)
         if verify_delegation_file(cache_dir, url.rpartition('/')[-1]):
             pass
         else:
@@ -393,7 +391,8 @@ def main():
         elif o in ("-i", "--initialize-delegations"):
             update_delegations = True
         else:
-            assert False, "Unhandled option; Sorry!"
+            print "Unhandled option; Sorry!"
+            sys.exit(3)
 
     # Update and quit.
     if update_delegations:
