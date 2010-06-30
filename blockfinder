@@ -296,11 +296,9 @@ def build_country_code_dictionary(cache_dir):
 def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
     map_co = build_country_code_dictionary(cache_dir)
-    for name, code in map_co.iteritems():
-        if name.lower() == country_name.lower():
-            return code
-    return None
-
+    answer =  [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
+    if len(answer) > 0:
+        return answer[0]
 
 def usage():
     """ Print usage information. """
@@ -391,7 +389,7 @@ def main():
         elif o in ("-t", "--nation-state"):
             country = a.upper()
         elif o in ("-n", "--country-name"):
-            country = get_country_code_from_name(cache_dir,a)
+            country = get_country_code_from_name(cache_dir, a)
         elif o in ("-i", "--initialize-delegations"):
             update_delegations = True
         else:
