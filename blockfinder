@@ -408,8 +408,7 @@ def main():
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
     if not country:
-        print "It appears you haven't selected a country."
-        print "Attempted to use country code: %s" % country
+        print "It appears your search did not match a country."
         sys.exit(1)
     # Check our cache age and warn if it's aged
     if cache_is_dated(cache_dir, delegation_files) and verbose:
