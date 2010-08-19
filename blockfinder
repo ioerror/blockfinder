@@ -318,6 +318,7 @@ Understood options (not all of which are implemented yet):
     -a, --asn           Search ASN allocations
     -t, --nation-state CC  Set the country to search (given as a two-letter code)
     -n, --country-name "Costa Rica"  Set country to search (full name)
+    -x, --hack-the-internet          Hack the internet
 
 At least one of -t or -i is required, and when in -t mode, at least one of -4,
 -6, and -a is required in order to do anything sensible.
@@ -327,8 +328,8 @@ def main():
     """ Where the magic starts. """
     try:
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "vhc:u:pso:46at:n:i",
-                                   ["verbose", "help", "cachedir=", "useragent=", "progress",
+                                   "xvhc:u:pso:46at:n:i",
+                                   ["hack-the-internet", "verbose", "help", "cachedir=", "useragent=", "progress",
                                     "silent", "output=", "ipv4", "ipv6", "asn", "nation-state=",
                                     "country-name", "initialize-delegation"])
     except getopt.GetoptError, err:
@@ -362,6 +363,9 @@ def main():
         download_country_code_file(cache_dir,useragent)
 
     for o, a in opts:
+        if o in ("-x", "--hack-the-internet"):
+            print "all your bases are belong to us!"
+            sys.exit(4)
         if o == "-v":
             verbose = True
         elif o in ("-h", "--help"):
