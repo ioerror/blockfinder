@@ -1,7 +1,11 @@
 blockfinder by Jacob Appelbaum <jacob@appelbaum.net>
 
-This is a simple tool that returns a list of netblocks for a given country.
-It does this by fetching the following lists of allocations:
+"All that Blockfinder does is allow you to identify, contact and potentially
+hack into every computer network in the world." - Rolling Stone, August 2010 [0]
+
+Contrary to popular media claims, blockfinder is a simple text based console
+tool that returns a list of netblocks for a given country.  It does this by
+fetching the following lists of allocations:
 
     ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
     ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
@@ -28,3 +32,4 @@ of your choice:
 
     ./blockfinder -v --ipv4 -t mm
 
+[0] http://www.rollingstone.com/culture/news/17389/192242
