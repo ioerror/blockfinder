@@ -161,6 +161,7 @@ def get_possible_match_entries(cc,cache_dir):
     return count
 
 def use_sql_database(request, cc, cache_dir):
+
     """now with added magic!"""
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
@@ -290,6 +291,16 @@ def build_country_code_dictionary(cache_dir):
         name = country.attributes["name"]
         map_co[name.value] = code.value
     return map_co
+def build_country_code_dictionary_rev(cache_dir):
+    """ Return a dictionary mapping country code to the country name"""
+    map_co = {}
+    xml_file = str(cache_dir) + "countrycodes.xml"
+    clist = minidom.parse(xml_file)
+    for country in clist.getElementsByTagName("country"):
+        code = country.attributes["code"]
+        name = country.attributes["name"]
+        map_co[code.value] = name.value
+    return map_co
 
 def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
@@ -297,6 +308,35 @@ def get_country_code_from_name(cache_dir, country_name):
     cc_code =  [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
     if len(cc_code) > 0:
         return cc_code[0]
+
+def ip_address_to_dec(ip_addr):
+   ipar = ip_addr.split('.')
+   a = ['','','','']
+   for i in range(4):
+       a[i] = hex(int(ipar[i]))[2:]
+       if(int(ipar[i]) < 15):
+          a[i] = """0""" + a[i]
+    
+   total = '0x'+a[0]+a[1]+a[2]+a[3]
+   decimal = int(total,16)
+   return decimal
+
+def lookup_ip_address(ip_addr,cache_dir):
+    """ Return the country code and name for a given ip address. """
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
+    ipv4arr = ip_addr.split('.')
+    if len(ipv4arr) < 4:
+       print """doesn't look like an ipv4 address.."""
+       sys.exit(5)
+    cursor.execute('select * from ipv4 WHERE start LIKE ?', (ipv4arr[0]+'%',))
+    cc_map = build_country_code_dictionary_rev(cache_dir)
+    for row in cursor:   	
+       if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
+	   print 'country code: ' + row[1] 
+           print 'country: ' + cc_map[row[1]]
+           break
+    cursor.close()
 
 def usage():
     """ Print usage information. """
@@ -319,6 +359,7 @@ Understood options (not all of which are implemented yet):
     -t, --nation-state CC  Set the country to search (given as a two-letter code)
     -n, --country-name "Costa Rica"  Set country to search (full name)
     -x, --hack-the-internet          Hack the internet
+    -r, --reverse-lookup	Return the county name for the specified IP
 
 At least one of -t or -i is required, and when in -t mode, at least one of -4,
 -6, and -a is required in order to do anything sensible.
@@ -328,10 +369,10 @@ def main():
     """ Where the magic starts. """
     try:
         opts, args = getopt.getopt(sys.argv[1:],
-                                   "xvhc:u:pso:46at:n:i",
+                                   "xvhc:u:pso:46at:n:ir:",
                                    ["hack-the-internet", "verbose", "help", "cachedir=", "useragent=", "progress",
                                     "silent", "output=", "ipv4", "ipv6", "asn", "nation-state=",
-                                    "country-name", "initialize-delegation"])
+                                    "country-name", "initialize-delegation","reverse-lookup"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -358,6 +399,7 @@ def main():
     requests = []
     country = ""
     useragent = "Mozilla/5.0"
+    ipaddress = ""
 
     if not os.path.exists(cache_dir + "countrycodes.xml"):
         download_country_code_file(cache_dir,useragent)
@@ -388,7 +430,10 @@ def main():
         elif o in ("-a", "--asn"):
             requests.append("asn")
         # XXX TODO: This should be a positional argument as it's the only manditory one...
-        elif o in ("-t", "--nation-state"):
+        elif o in ("-r", "--reverse-lookup"):
+	    ipaddress = a
+	    requests.append("reverse")
+	elif o in ("-t", "--nation-state"):
             country = a.upper()
         elif o in ("-n", "--country-name"):
             country = get_country_code_from_name(cache_dir, a)
@@ -407,10 +452,16 @@ def main():
         create_sql_database(cache_dir)
         insert_into_sql_database(delegations, cache_dir)
         sys.exit(0)
+
     if not requests:
         print "Nothing to do. Have you requested anything?"
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
+
+    if ipaddress:
+        print "Reverse ip lookup"
+        lookup_ip_address(ipaddress,cache_dir)
+        sys.exit(0)
     if not country:
         print "It appears your search did not match a country."
         sys.exit(1)
@@ -419,6 +470,7 @@ def main():
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     if verbose:
         print "Using country code: %s" % country
+ 
     for request in requests:
         try:
             use_sql_database(request, country, cache_dir)
