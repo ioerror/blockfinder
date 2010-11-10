@@ -361,7 +361,7 @@ def geoip_lookup(cache_dir, ip_addr):
 def lookup_ip_address(ip_addr,cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
         use GeoIP if available."""
-    print "Reverse lookup for " + ip_addr
+    print "Reverse lookup for: " + ip_addr
     if GeoIP:
         geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
         print "GeoIP country code: " + geoip_cc
@@ -382,10 +382,11 @@ def lookup_ip_address(ip_addr,cache_dir):
            print 'RIR country: ' + rir_cc_name
            break
     cursor.close()
-    if geoip_cc != rir_cc:
-        print "It appears that the RIR data conflicts with the GeoIP data"
-        print "The GeoIP data is likely closer to being correct due to " \
-              "sub-delegation issues with LIR databases."
+    if GeoIP:
+        if geoip_cc != rir_cc:
+            print "It appears that the RIR data conflicts with the GeoIP data"
+            print "The GeoIP data is likely closer to being correct due to " \
+                  "sub-delegation issues with LIR databases"
 
 def usage():
     """ Print usage information. """
