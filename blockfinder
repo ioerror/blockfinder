@@ -20,6 +20,7 @@ __version__ = '3.1415'
 
 try:
     import GeoIP
+    import gzip
 except ImportError:
      GeoIP = None
 
@@ -249,11 +250,27 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
             cache_delegation(cache_dir, url,useragent)
     return True
 
+def unpack_geoip_cache(cache_dir, geoip_url):
+    """ Unpack the fetched GeoIP file into the blockfinder cache. """
+    # This probably should unlink the gzip'ed file if we care about space...
+    gzip_filename = geoip_url.rpartition('/')[-1]
+    gunziped_filename = gzip_filename.rpartition('.')[0]
+    if verbose:
+        print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
+    gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
+    gunzipped_data = gzip_file.read()
+    gzip_file.close()
+    gunzipped_file = open(cache_dir + gunziped_filename, 'w')
+    gunzipped_file.writelines(gunzipped_data)
+    gunzipped_file.close()
+    return True
+
 def update_geoip_cache(cache_dir, geoip_url, useragent):
     """ Fetch country level resolution GeoIP file from a given url and cache
     the contents. Unpack it if it's compressed. """
     print "Updating GeoIP cache..."
-    return cache_delegation(cache_dir, geoip_url, useragent)
+    cache_delegation(cache_dir, geoip_url, useragent)
+    unpack_geoip_cache(cache_dir, geoip_url)
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
