@@ -1,3 +1,9 @@
+High Priority:
+Add support for LIR blocks by parsing the ripe.db.inetnum.gz.
+This lists sub-allocations and assignments made by local LIR/ISPs:
+    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
+
+Lower Priority:
 Fix country code searching code
     It appears to be broken for "korea"
 Add country-code re-init code and progress meter
