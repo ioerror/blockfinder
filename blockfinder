@@ -352,8 +352,20 @@ def ip_address_to_dec(ip_addr):
    decimal = int(total,16)
    return decimal
 
+def geoip_lookup(cache_dir, ip_addr):
+    gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+    cc = gi.country_code_by_addr(ip_addr)
+    cc_name = gi.country_name_by_addr(ip_addr)
+    return cc,cc_name
+
 def lookup_ip_address(ip_addr,cache_dir):
-    """ Return the country code and name for a given ip address. """
+    """ Return the country code and name for a given ip address. Attempts to
+        use GeoIP if available."""
+    print "Reverse lookup for " + ip_addr
+    if GeoIP:
+        geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
+        print "GeoIP country code: " + geoip_cc
+        print "GeoIP country name: " + geoip_cc_name
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
     ipv4arr = ip_addr.split('.')
@@ -364,10 +376,16 @@ def lookup_ip_address(ip_addr,cache_dir):
     cc_map = build_country_code_dictionary_rev(cache_dir)
     for row in cursor:      
        if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
-           print 'country code: ' + row[1] 
-           print 'country: ' + cc_map[row[1]]
+           rir_cc = row[1]
+           rir_cc_name = cc_map[row[1]]
+           print 'RIR country code: ' + rir_cc
+           print 'RIR country: ' + rir_cc_name
            break
     cursor.close()
+    if geoip_cc != rir_cc:
+        print "It appears that the RIR data conflicts with the GeoIP data"
+        print "The GeoIP data is likely closer to being correct due to " \
+              "sub-delegation issues with LIR databases."
 
 def usage():
     """ Print usage information. """
@@ -493,7 +511,6 @@ def main():
         sys.exit(1)
 
     if ipaddress:
-        print "Reverse ip lookup"
         lookup_ip_address(ipaddress,cache_dir)
         sys.exit(0)
     if not country:
