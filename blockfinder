@@ -19,6 +19,11 @@ __license__ = 'See LICENSE for licensing information'
 __version__ = '3.1415'
 
 try:
+    import GeoIP
+except ImportError:
+     GeoIP = None
+
+try:
     from future import antigravity
 except ImportError:
     antigravity = None
@@ -244,6 +249,12 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
             cache_delegation(cache_dir, url,useragent)
     return True
 
+def update_geoip_cache(cache_dir, geoip_url, useragent):
+    """ Fetch country level resolution GeoIP file from a given url and cache
+    the contents. Unpack it if it's compressed. """
+    print "Updating GeoIP cache..."
+    return cache_delegation(cache_dir, geoip_url, useragent)
+
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
     keys = "registry cc type start value date status"
@@ -394,6 +405,7 @@ def main():
         ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
         ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
     """
+    geoip_country_url = "http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz"
     delegation_files = []
     for url in delegation_urls.split():
         filename = url.rpartition('/')
@@ -448,6 +460,8 @@ def main():
 
     # Update and quit.
     if update_delegations:
+        if GeoIP:
+            update_geoip_cache(cache_dir,geoip_country_url,useragent)
         update_delegation_cache(cache_dir,delegation_urls,useragent)
         if verbose:
             verify_cache(cache_dir, delegation_files)
