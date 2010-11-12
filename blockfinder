@@ -57,6 +57,8 @@ def fetch(url, useragent):
     t_start = time.time()
     while True:
         t_delta = time.time() - t_start
+        if t_delta == 0:
+            t_delta = 1
         update_progress_bar(
             float(len(ret)) / length,
             "%.2f K/s" % (len(ret) / 1024 / t_delta) )
