@@ -12,6 +12,7 @@ import sqlite3
 import hashlib
 import gzip
 from xml.dom import minidom
+import IPy
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 ___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
@@ -365,16 +366,7 @@ def get_country_code_from_name(cache_dir, country_name):
         return cc_code[0]
 
 def ip_address_to_dec(ip_addr):
-   ipar = ip_addr.split('.')
-   a = ['','','','']
-   for i in range(4):
-       a[i] = hex(int(ipar[i]))[2:]
-       if(int(ipar[i]) < 15):
-          a[i] = """0""" + a[i]
-
-   total = '0x'+a[0]+a[1]+a[2]+a[3]
-   decimal = int(total,16)
-   return decimal
+    return IPy.parseAddress(ip_addr)[0]
 
 def geoip_lookup(cache_dir, ip_addr):
     if len(ip_addr) > 4:
