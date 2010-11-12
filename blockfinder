@@ -377,9 +377,20 @@ def ip_address_to_dec(ip_addr):
    return decimal
 
 def geoip_lookup(cache_dir, ip_addr):
-    gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
-    cc = gi.country_code_by_addr(ip_addr)
-    cc_name = gi.country_name_by_addr(ip_addr)
+    if len(ip_addr) > 4:
+        # This would work with the CVS version of the GeoIP code
+        # However, MaxMind hasn't done a release in a long time.
+        # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
+        #        gi = GeoIP.open(cache_dir + "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
+        #        cc = gi.country_code_by_addr_v6(ip_addr)
+        #        cc_name = gi.country_name_by_addr_v6(ip_addr)
+        cc = "N/A"
+        cc_name = "N/A"
+        print "IPv6 GeoIP is not currently supported by python-geoip"
+    else:
+        gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+        cc = gi.country_code_by_addr(ip_addr)
+        cc_name = gi.country_name_by_addr(ip_addr)
     return cc,cc_name
 
 def lookup_ip_address(ip_addr,cache_dir):
