@@ -4,9 +4,8 @@ Add support for LIR blocks by parsing the ripe.db.inetnum.gz.
 This lists sub-allocations and assignments made by local LIR/ISPs:
     ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
 
-Add GeoIP support
-    Include the free database (and an update feature)
-    Optionally allow for an arbitrary custom database
+Add Custom GeoIP support
+    If a user wants to supply their own DB; we should allow this
 
 Add GeoIP database inversion
     Optionally combine the results with delegation information to produce more
