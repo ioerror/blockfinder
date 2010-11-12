@@ -255,6 +255,7 @@ def update_lir_delegation_cache(cache_dir, delegation_urls, useragent):
     print "Updating LIR delegation cache..."
     for url in delegation_urls.split():
         cache_delegation(cache_dir, url,useragent)
+    unpack_lir_delegation_cache(cache_dir, delegation_urls)
 
 def unpack_lir_delegation_cache(cache_dir, delegation_urls):
     """ Unpack the fetched LIR delegation files into the blockfinder cache. """
