@@ -14,6 +14,8 @@ Add GeoIP database inversion
 Add/Fix support for IPv6
     ./blockfinder -r 2001:200:dff:fff1:216:3eff:feb1:44d7
 
+Add lock file to ensure '-i' only runs once
+
 Unit Tests!
 
 Lower Priority:
