@@ -347,16 +347,12 @@ def build_country_code_dictionary(cache_dir):
         name = country.attributes["name"]
         map_co[name.value] = code.value
     return map_co
-def build_country_code_dictionary_rev(cache_dir):
-    """ Return a dictionary mapping country code to the country name"""
-    map_co = {}
-    xml_file = str(cache_dir) + "countrycodes.xml"
-    clist = minidom.parse(xml_file)
-    for country in clist.getElementsByTagName("country"):
-        code = country.attributes["code"]
-        name = country.attributes["name"]
-        map_co[code.value] = name.value
-    return map_co
+
+def get_name_from_country_code(cache_dir, cc_code):
+    map_co = build_country_code_dictionary(cache_dir)
+    country_name = [(key, value) for (key, value) in map_co.items() if value == cc_code]
+    if len(country_name) > 0:
+        return country_name[0][0]
 
 def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
@@ -400,11 +396,10 @@ def lookup_ip_address(ip_addr,cache_dir):
        print """doesn't look like an ipv4 address.."""
        sys.exit(5)
     cursor.execute('select * from ipv4 WHERE start LIKE ?', (ipv4arr[0]+'%',))
-    cc_map = build_country_code_dictionary_rev(cache_dir)
     for row in cursor:
        if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
            rir_cc = row[1]
-           rir_cc_name = cc_map[row[1]]
+           rir_cc_name = get_name_from_country_code(cache_dir, row[1])
            print 'RIR country code: ' + rir_cc
            print 'RIR country: ' + rir_cc_name
            break
