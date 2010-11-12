@@ -10,6 +10,7 @@ import sys
 from math import floor, log
 import sqlite3
 import hashlib
+import gzip
 from xml.dom import minidom
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
@@ -20,7 +21,6 @@ __version__ = '3.1415'
 
 try:
     import GeoIP
-    import gzip
 except ImportError:
      GeoIP = None
 
