@@ -250,27 +250,29 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
             cache_delegation(cache_dir, url,useragent)
     return True
 
-def unpack_geoip_cache(cache_dir, geoip_url):
+def unpack_geoip_cache(cache_dir, geoip_urls):
     """ Unpack the fetched GeoIP file into the blockfinder cache. """
     # This probably should unlink the gzip'ed file if we care about space...
-    gzip_filename = geoip_url.rpartition('/')[-1]
-    gunziped_filename = gzip_filename.rpartition('.')[0]
-    if verbose:
-        print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
-    gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
-    gunzipped_data = gzip_file.read()
-    gzip_file.close()
-    gunzipped_file = open(cache_dir + gunziped_filename, 'w')
-    gunzipped_file.writelines(gunzipped_data)
-    gunzipped_file.close()
+    for url in geoip_urls.split():
+        gzip_filename = geoip_urls.rpartition('/')[-1]
+        gunziped_filename = gzip_filename.rpartition('.')[0]
+        if verbose:
+            print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
+        gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
+        gunzipped_data = gzip_file.read()
+        gzip_file.close()
+        gunzipped_file = open(cache_dir + gunziped_filename, 'w')
+        gunzipped_file.writelines(gunzipped_data)
+        gunzipped_file.close()
     return True
 
-def update_geoip_cache(cache_dir, geoip_url, useragent):
-    """ Fetch country level resolution GeoIP file from a given url and cache
+def update_geoip_cache(cache_dir, geoip_urls, useragent):
+    """ Fetch country level resolution GeoIP files from a given url and cache
     the contents. Unpack it if it's compressed. """
     print "Updating GeoIP cache..."
-    cache_delegation(cache_dir, geoip_url, useragent)
-    unpack_geoip_cache(cache_dir, geoip_url)
+    for url in geoip_urls.split():
+        cache_delegation(cache_dir, url, useragent)
+    unpack_geoip_cache(cache_dir, geoip_urls)
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
@@ -441,7 +443,9 @@ def main():
         ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
         ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
     """
-    geoip_country_url = "http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz"
+    geoip_country_urls = """http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
+    http://geolite.maxmind.com/download/geoip/database/GeoIPv6.dat.gz"""
+
     delegation_files = []
     for url in delegation_urls.split():
         filename = url.rpartition('/')
@@ -497,7 +501,7 @@ def main():
     # Update and quit.
     if update_delegations:
         if GeoIP:
-            update_geoip_cache(cache_dir,geoip_country_url,useragent)
+            update_geoip_cache(cache_dir,geoip_country_urls,useragent)
         update_delegation_cache(cache_dir,delegation_urls,useragent)
         if verbose:
             verify_cache(cache_dir, delegation_files)
