@@ -225,7 +225,7 @@ def verify_delegation_file(cache_dir, delegation_file):
     if checksum == checksum_of_file and checksum != "":
         return True
     return False
-    
+
 def verify_cache(cache_dir, delegation_files):
     """ if in verbose mode prints the result of checking the checksum of the
         delegation files """
@@ -249,6 +249,27 @@ def update_delegation_cache(cache_dir, delegation_urls, useragent):
         else:
             cache_delegation(cache_dir, url,useragent)
     return True
+
+def update_lir_delegation_cache(cache_dir, delegation_urls, useragent):
+    """ Fetch multiple LIR delegation urls and cache the contents. """
+    print "Updating LIR delegation cache..."
+    for url in delegation_urls.split():
+        cache_delegation(cache_dir, url,useragent)
+
+def unpack_lir_delegation_cache(cache_dir, delegation_urls):
+    """ Unpack the fetched LIR delegation files into the blockfinder cache. """
+    # This probably should unlink the gzip'ed file if we care about space...
+    for url in delegation_urls.split():
+        gzip_filename = url.rpartition('/')[-1]
+        gunziped_filename = gzip_filename.rpartition('.')[0]
+        if verbose:
+            print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
+        gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
+        gunzipped_data = gzip_file.read()
+        gzip_file.close()
+        gunzipped_file = open(cache_dir + gunziped_filename, 'w')
+        gunzipped_file.writelines(gunzipped_data)
+        gunzipped_file.close()
 
 def unpack_geoip_cache(cache_dir, geoip_urls):
     """ Unpack the fetched GeoIP file into the blockfinder cache. """
@@ -446,7 +467,8 @@ def main():
     geoip_country_urls = """http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
     http://geolite.maxmind.com/download/geoip/database/GeoIPv6.dat.gz"""
 
-    ripe_lir_url = "ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz"
+    lir_urls = """ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
+    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz"""
     delegation_files = []
     for url in delegation_urls.split():
         filename = url.rpartition('/')
@@ -504,6 +526,7 @@ def main():
         if GeoIP:
             update_geoip_cache(cache_dir,geoip_country_urls,useragent)
         update_delegation_cache(cache_dir,delegation_urls,useragent)
+        update_lir_delegation_cache(cache_dir,lir_urls,useragent)
         if verbose:
             verify_cache(cache_dir, delegation_files)
         delegations = load_all_delegations(cache_dir, delegation_urls)
