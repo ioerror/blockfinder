@@ -446,6 +446,7 @@ def main():
     geoip_country_urls = """http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
     http://geolite.maxmind.com/download/geoip/database/GeoIPv6.dat.gz"""
 
+    ripe_lir_url = "ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz"
     delegation_files = []
     for url in delegation_urls.split():
         filename = url.rpartition('/')
