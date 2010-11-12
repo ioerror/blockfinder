@@ -276,7 +276,7 @@ def unpack_geoip_cache(cache_dir, geoip_urls):
     """ Unpack the fetched GeoIP file into the blockfinder cache. """
     # This probably should unlink the gzip'ed file if we care about space...
     for url in geoip_urls.split():
-        gzip_filename = geoip_urls.rpartition('/')[-1]
+        gzip_filename = url.rpartition('/')[-1]
         gunziped_filename = gzip_filename.rpartition('.')[0]
         if verbose:
             print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
