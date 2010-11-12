@@ -268,7 +268,7 @@ def unpack_lir_delegation_cache(cache_dir, delegation_urls):
         gzip_filename = url.rpartition('/')[-1]
         gunziped_filename = gzip_filename.rpartition('.')[0]
         if verbose:
-            print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
+            print "Unpacking LIR file " + gzip_filename + " into our cache as " + gunziped_filename
         gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
         gunzipped_data = gzip_file.read()
         gzip_file.close()
