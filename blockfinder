@@ -364,8 +364,8 @@ def lookup_ip_address(ip_addr,cache_dir):
     print "Reverse lookup for: " + ip_addr
     if GeoIP:
         geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
-        print "GeoIP country code: " + geoip_cc
-        print "GeoIP country name: " + geoip_cc_name
+        print "GeoIP country code: " + str(geoip_cc)
+        print "GeoIP country name: " + str(geoip_cc_name)
     conn = sqlite3.connect(cache_dir +"sqlitedb")
     cursor = conn.cursor()
     ipv4arr = ip_addr.split('.')
