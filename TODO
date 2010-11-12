@@ -11,6 +11,9 @@ Add GeoIP database inversion
     Optionally combine the results with delegation information to produce more
     accurate netblocks
 
+Add/Fix support for IPv6
+    ./blockfinder -r 2001:200:dff:fff1:216:3eff:feb1:44d7
+
 Lower Priority:
 Fix country code searching code
     It appears to be broken for "korea"
