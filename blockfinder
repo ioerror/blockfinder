@@ -7,7 +7,7 @@ import os
 import time
 import getopt
 import sys
-from math import floor, log
+from math import ceil, log
 import sqlite3
 import hashlib
 import gzip
@@ -319,7 +319,7 @@ def load_all_delegations(cache_dir, delegation_urls):
     return delegations
 
 def calculate_ipv4_subnet(host_count):
-    return 32 - int(floor(log(host_count,2)))
+    return 32 - int(ceil(log(host_count,2)))
 
 def download_country_code_file(cache_dir, useragent):
     """ Download and save the latest opencountrycode XML file """
