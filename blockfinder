@@ -119,6 +119,7 @@ def create_sql_database(cache_dir):
     cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
     cursor.execute("""create table ipv4(registry text, cc text, start text, value INTEGER, date text, status text)""")
     cursor.execute("""create table ipv6(registry text, cc text, start text, value INTEGER, date text, status text)""")
+    cursor.execute("""create table lir_record(cc text, start text, value INTEGER, type INTEGER)""")
     conn.commit()
     cursor.close()
 
@@ -357,7 +358,7 @@ def get_name_from_country_code(cache_dir, cc_code):
 def get_country_code_from_name(cache_dir, country_name):
     """ Return the country code for a given country name. """
     map_co = build_country_code_dictionary(cache_dir)
-    cc_code =  [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
+    cc_code = [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
     if len(cc_code) > 0:
         return cc_code[0]
 
@@ -409,6 +410,50 @@ def lookup_ip_address(ip_addr,cache_dir):
             print "It appears that the RIR data conflicts with the GeoIP data"
             print "The GeoIP data is likely closer to being correct due to " \
                   "sub-delegation issues with LIR databases"
+
+
+def return_first_ip_and_number_in_inetnum(line):
+    start_ip = line.split("-")[0].strip()
+    end_ip = line.split("-")[1].strip()
+    num_ips = ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip)
+    return start_ip, num_ips
+
+def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
+    block = []
+    country = ""
+    entry = False
+    conn = sqlite3.connect(cache_dir + "sqlitedb")
+    cursor =  conn.cursor()
+    insert_text = """insert into lir_record (cc, start, value, type) VALUES (?,?,?,?)"""
+
+    for line in open(cache_dir + filename, "r"):
+        line = line.replace("\n", "")
+        if line == "":
+            entry = False
+            country, block = "", []
+        elif not entry and "inetnum:" in line:
+            try:
+                line = line.replace("inetnum:", "").strip()
+                start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
+                if num_ips == 0:
+                    num_ips = 1
+                block = [start_ip, calculate_ipv4_subnet(num_ips)]
+                entry = True
+            except Exception, e:
+                print e
+        elif not entry and "inet6num:" in line:
+            try:
+                block = line.replace("inet6num:", "").strip().split("/")
+                entry = True
+            except Exception, e:
+                print e
+        elif entry and "country:" in line:
+            country = line.replace("country:", "").strip()
+            data = (block[0], block[1], country, IPy.IP(block[0]).version() )
+            cursor.execute(insert_text, data)
+    conn.commit()
+    cursor.close()
+
 
 def usage():
     """ Print usage information. """
