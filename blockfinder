@@ -369,7 +369,7 @@ def ip_address_to_dec(ip_addr):
     return IPy.parseAddress(ip_addr)[0]
 
 def geoip_lookup(cache_dir, ip_addr):
-    if len(ip_addr) > 4:
+    if IPy.IP(ip_addr).version() != 4:
         # This would work with the CVS version of the GeoIP code
         # However, MaxMind hasn't done a release in a long time.
         # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
