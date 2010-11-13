@@ -578,6 +578,8 @@ def main():
         delegations = load_all_delegations(cache_dir, delegation_urls)
         create_sql_database(cache_dir)
         insert_into_sql_database(delegations, cache_dir)
+        for file in "ripe.db.inetnum ripe.db.inet6num".split():
+            extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, file)
         sys.exit(0)
 
     if not requests:
