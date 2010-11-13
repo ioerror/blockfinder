@@ -387,6 +387,7 @@ def geoip_lookup(cache_dir, ip_addr):
 def lookup_ip_address(ip_addr,cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
         use GeoIP if available."""
+    rir_cc = ""
     print "Reverse lookup for: " + ip_addr
     if GeoIP:
         geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
@@ -400,12 +401,20 @@ def lookup_ip_address(ip_addr,cache_dir):
        sys.exit(5)
     cursor.execute('select * from ipv4 WHERE start LIKE ?', (ipv4arr[0]+'%',))
     for row in cursor:
-       if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
-           rir_cc = row[1]
-           rir_cc_name = get_name_from_country_code(cache_dir, row[1])
-           print 'RIR country code: ' + rir_cc
-           print 'RIR country: ' + rir_cc_name
-           break
+        if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
+            rir_cc = row[1]
+            rir_cc_name = get_name_from_country_code(cache_dir, row[1])
+            print 'RIR country code: ' + rir_cc
+            print 'RIR country: ' + rir_cc_name
+            break
+
+    cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0]+'%',))
+    for row in cursor:
+        if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
+            print 'LIR country code: ' + row[0]
+            print 'LIR country: ', get_name_from_country_code(cache_dir, row[0])
+            break
+
     cursor.close()
     if GeoIP:
         if geoip_cc != rir_cc:
@@ -437,9 +446,7 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
             try:
                 line = line.replace("inetnum:", "").strip()
                 start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
-                if num_ips == 0:
-                    num_ips = 1
-                block = [start_ip, calculate_ipv4_subnet(num_ips)]
+                block = [start_ip, num_ips]
                 entry = True
             except Exception, e:
                 print e
@@ -451,7 +458,7 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
                 print e
         elif entry and "country:" in line:
             country = line.replace("country:", "").strip()
-            data = (block[0], block[1], country, IPy.IP(block[0]).version() )
+            data = (country, block[0], block[1], IPy.IP(block[0]).version() )
             cursor.execute(insert_text, data)
     conn.commit()
     cursor.close()
