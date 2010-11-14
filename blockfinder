@@ -401,7 +401,7 @@ def lookup_ip_address(ip_addr, cache_dir):
     if len(ipv4arr) < 4:
        print """doesn't look like an ipv4 address.."""
        sys.exit(5)
-    cursor.execute('select * from ipv4 WHERE start LIKE ?', (ipv4arr[0]+'%',))
+    cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + ".%",))
     for row in cursor:
         if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
             rir_cc = row[1]
@@ -410,7 +410,7 @@ def lookup_ip_address(ip_addr, cache_dir):
             print 'RIR country: ' + rir_cc_name
             break
 
-    cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0]+'%',))
+    cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
     for row in cursor:
         if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
             print 'LIR country code: ' + row[0]
