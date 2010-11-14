@@ -16,9 +16,6 @@ Add/Fix support for IPv6
 
 Add lock file to ensure '-i' only runs once
 
-Add hostname support for '-r'
-    ./blockfinder -r crypto.nsa.org
-
 Unit Tests!
 
 Lower Priority:
