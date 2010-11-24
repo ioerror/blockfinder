@@ -113,16 +113,14 @@ def cache_is_dated(cache_dir, cached_files):
 def create_sql_database(cache_dir):
     """ Creates a new sqlite database.
          If there is a previous sqlite database it will be deleted. """
-    try:
-        os.remove(cache_dir +"sqlitedb")
-    except:
-        pass
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor = conn.cursor()
+    for table in ["ipv4", "ipv6", "asn"]:
+        cursor.execute("""drop table if exists """ + table)
     cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
     cursor.execute("""create table ipv4(registry text, cc text, start text, value INTEGER, date text, status text)""")
     cursor.execute("""create table ipv6(registry text, cc text, start text, value INTEGER, date text, status text)""")
-    cursor.execute("""create table lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
     conn.commit()
     cursor.close()
 
@@ -401,6 +399,7 @@ def lookup_ip_address(ip_addr, cache_dir):
     if len(ipv4arr) < 4:
        print """doesn't look like an ipv4 address.."""
        sys.exit(5)
+
     cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + ".%",))
     for row in cursor:
         if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
@@ -437,6 +436,8 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
     entry = False
     conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor =  conn.cursor()
+    cursor.execute("""drop table if exists lir_record """)
+    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
     insert_text = """insert into lir_record (cc, start, value, type) VALUES (?,?,?,?)"""
 
     for line in open(cache_dir + filename, "r"):
@@ -465,6 +466,11 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
     conn.commit()
     cursor.close()
 
+def create_db_and_insert_delegation_into_db(cache_dir, delegation_urls):
+        create_sql_database(cache_dir)
+        delegations = load_all_delegations(cache_dir, delegation_urls)
+        insert_into_sql_database(delegations, cache_dir)
+
 
 def usage():
     """ Print usage information. """
@@ -488,6 +494,9 @@ Understood options (not all of which are implemented yet):
     -n, --country-name "Costa Rica"  Set country to search (full name)
     -x, --hack-the-internet          Hack the internet
     -r, --reverse-lookup    Return the county name for the specified IP
+    -i, --initialize-delegation    Initialize or update delegation information
+    -l, --initialize-lir    Initialize or update lir information
+    -d, --reload-delegation    Use existing delegation files to update the database
 
 At least one of -t or -i is required, and when in -t mode, at least one of -4,
 -6, and -a is required in order to do anything sensible.
@@ -496,11 +505,11 @@ At least one of -t or -i is required, and when in -t mode, at least one of -4,
 def main():
     """ Where the magic starts. """
     try:
-        opts, args = getopt.getopt(sys.argv[1:],
-                                   "xvhc:u:pso:46at:n:ir:",
-                                   ["hack-the-internet", "verbose", "help", "cachedir=", "useragent=", "progress",
-                                    "silent", "output=", "ipv4", "ipv6", "asn", "nation-state=",
-                                    "country-name", "initialize-delegation","reverse-lookup"])
+        opts, args = getopt.getopt(sys.argv[1:], "dlxvhc:u:pso:46at:n:ir:",
+                                   ["reload-delegation", "initialize-lir", "hack-the-internet",
+                                   "verbose", "help", "cachedir=", "useragent=", "progress",
+                                   "silent", "output=", "ipv4", "ipv6","asn", "nation-state=",
+                                   "country-name", "initialize-delegation","reverse-lookup"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -529,6 +538,8 @@ def main():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
     update_delegations = False
+    update_lir = False
+    reload_delegation_db = False
     requests = []
     country = ""
     useragent = "Mozilla/5.0"
@@ -572,21 +583,30 @@ def main():
             country = get_country_code_from_name(cache_dir, a)
         elif o in ("-i", "--initialize-delegations"):
             update_delegations = True
+        elif o in ("-l", "--initialize-lir"):
+            update_lir = True
+        elif o in ("-d", "--reload-delegation"):
+            reload_delegation_db = True
         else:
             print "Unhandled option; Sorry!"
             sys.exit(3)
+
+    if reload_delegation_db:
+        create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
+        sys.exit(0)
 
     # Update and quit.
     if update_delegations:
         if GeoIP:
             update_geoip_cache(cache_dir,geoip_country_urls,useragent)
         update_delegation_cache(cache_dir,delegation_urls,useragent)
-        update_lir_delegation_cache(cache_dir,lir_urls,useragent)
         if verbose:
             verify_cache(cache_dir, delegation_files)
-        delegations = load_all_delegations(cache_dir, delegation_urls)
-        create_sql_database(cache_dir)
-        insert_into_sql_database(delegations, cache_dir)
+        create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
+        if not update_lir:
+            sys.exit(0)
+    if update_lir:
+        update_lir_delegation_cache(cache_dir,lir_urls,useragent)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
         for file in "ripe.db.inetnum ripe.db.inet6num".split():
             extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, file)
