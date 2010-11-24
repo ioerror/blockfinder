@@ -13,7 +13,6 @@ import hashlib
 import gzip
 from xml.dom import minidom
 import socket
-import IPy
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 ___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
@@ -364,10 +363,22 @@ def get_country_code_from_name(cache_dir, country_name):
         return cc_code[0]
 
 def ip_address_to_dec(ip_addr):
-    return IPy.parseAddress(ip_addr)[0]
+    ipar = ip_addr.split('.')
+    a = ['','','','']
+    for i in range(4):
+        a[i] = hex(int(ipar[i]))[2:]
+        if(int(ipar[i]) <= 15):
+            a[i] = """0""" + a[i]
+
+    total = '0x'+a[0]+a[1]+a[2]+a[3]
+    decimal = int(total,16)
+    return decimal
+
+
+
 
 def geoip_lookup(cache_dir, ip_addr):
-    if IPy.IP(ip_addr).version() != 4:
+    if len(ip_addr.split('.')) != 4:
         # This would work with the CVS version of the GeoIP code
         # However, MaxMind hasn't done a release in a long time.
         # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
@@ -393,13 +404,13 @@ def lookup_ip_address(ip_addr, cache_dir):
         geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
         print "GeoIP country code: " + str(geoip_cc)
         print "GeoIP country name: " + str(geoip_cc_name)
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
-    cursor = conn.cursor()
     ipv4arr = ip_addr.split('.')
-    if len(ipv4arr) < 4:
+    if len(ipv4arr) != 4:
        print """doesn't look like an ipv4 address.."""
        sys.exit(5)
 
+    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    cursor = conn.cursor()
     cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + ".%",))
     for row in cursor:
         if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[2])+row[3])):
@@ -423,12 +434,19 @@ def lookup_ip_address(ip_addr, cache_dir):
             print "The GeoIP data is likely closer to being correct due to " \
                   "sub-delegation issues with LIR databases"
 
-
 def return_first_ip_and_number_in_inetnum(line):
     start_ip = line.split("-")[0].strip()
     end_ip = line.split("-")[1].strip()
     num_ips = ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip)
     return start_ip, num_ips
+
+def create_or_replace_lir_table_in_db(cache_dir):
+    conn = sqlite3.connect(cache_dir + "sqlitedb")
+    cursor = conn.cursor()
+    cursor.execute("""drop table if exists lir_record """)
+    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+    conn.commit()
+    cursor.close()
 
 def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
     block = []
@@ -436,32 +454,32 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
     entry = False
     conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor =  conn.cursor()
-    cursor.execute("""drop table if exists lir_record """)
-    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
     insert_text = """insert into lir_record (cc, start, value, type) VALUES (?,?,?,?)"""
-
+    version = ""
     for line in open(cache_dir + filename, "r"):
         line = line.replace("\n", "")
         if line == "":
             entry = False
-            country, block = "", []
+            country, block, version = "", [], ""
         elif not entry and "inetnum:" in line:
             try:
                 line = line.replace("inetnum:", "").strip()
                 start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
                 block = [start_ip, num_ips]
                 entry = True
+                version = "4"
             except Exception, e:
                 print e
         elif not entry and "inet6num:" in line:
             try:
                 block = line.replace("inet6num:", "").strip().split("/")
                 entry = True
+                version = "6"
             except Exception, e:
                 print e
         elif entry and "country:" in line:
             country = line.replace("country:", "").strip()
-            data = (country, block[0], block[1], IPy.IP(block[0]).version() )
+            data = (country, block[0], block[1], version )
             cursor.execute(insert_text, data)
     conn.commit()
     cursor.close()
@@ -608,6 +626,7 @@ def main():
     if update_lir:
         update_lir_delegation_cache(cache_dir,lir_urls,useragent)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
+        create_or_replace_lir_table_in_db(cache_dir)
         for file in "ripe.db.inetnum ripe.db.inet6num".split():
             extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, file)
         sys.exit(0)
