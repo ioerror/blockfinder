@@ -143,6 +143,7 @@ def insert_into_sql_database(delegations,cache_dir):
                 cursor.execute(text, data  )
     conn.commit()
     cursor.close()
+    return True
 
 def get_total_delegations_from_db(cache_dir):
     """ Returns the total count of the number of entries in the ipv4, ipv6 and asn table """
@@ -487,7 +488,7 @@ def lookup_ip_address(ip_addr, cache_dir):
     lir = lir_lookup(ip_addr, cache_dir)
     if(lir != 1):
         print 'LIR country code: ' + lir[0]
-        print 'LIR country code: ' + lir[1]
+        print 'LIR country: ' + lir[1]
     
     if GeoIP:
         if geoip_cc != rir_cc:
@@ -549,7 +550,8 @@ def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
 def create_db_and_insert_delegation_into_db(cache_dir, delegation_urls):
         create_sql_database(cache_dir)
         delegations = load_all_delegations(cache_dir, delegation_urls)
-        insert_into_sql_database(delegations, cache_dir)
+        if insert_into_sql_database(delegations, cache_dir) == True:
+            return True
 
 
 def usage():
