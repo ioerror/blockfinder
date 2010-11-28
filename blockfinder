@@ -30,6 +30,9 @@ try:
 except ImportError:
     antigravity = None
 
+class BlockFinderError(Exception):
+    pass
+
 def update_progress_bar(percent_done, caption=""):
     """Write a progress bar to the console"""
     rows, columns = map(int, os.popen('stty size', 'r').read().split())
@@ -380,7 +383,7 @@ def ip_address_to_dec(ip_addr):
     decimal = int(total,16)
     return decimal
 
-def ip_address_valid(ip_addr):
+def ipv4_address_valid(ip_addr):
     ipv4arr = ip_addr.split('.')
     if len(ipv4arr) == 4:
         for items in ipv4arr:
@@ -391,28 +394,22 @@ def ip_address_valid(ip_addr):
         return False
 
 def geoip_lookup(cache_dir, ip_addr):
-    if len(ip_addr.split('.')) != 4:
-        # This would work with the CVS version of the GeoIP code
-        # However, MaxMind hasn't done a release in a long time.
-        # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
-        #        gi = GeoIP.open(cache_dir + "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
-        #        cc = gi.country_code_by_addr_v6(ip_addr)
-        #        cc_name = gi.country_name_by_addr_v6(ip_addr)
-        cc = "N/A"
-        cc_name = "N/A"
-        print "IPv6 GeoIP is not currently supported by python-geoip"
-    else:
-        gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
-        cc = gi.country_code_by_addr(ip_addr)
-        cc_name = gi.country_name_by_addr(ip_addr)
-    return cc,cc_name
+    # This would work with the CVS version of the GeoIP code
+    # However, MaxMind hasn't done a release in a long time.
+    # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
+    #        gi = GeoIP.open(cache_dir + "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
+    #        cc = gi.country_code_by_addr_v6(ip_addr)
+    #        cc_name = gi.country_name_by_addr_v6(ip_addr)
+    gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+    cc = gi.country_code_by_addr(ip_addr)
+    cc_name = gi.country_name_by_addr(ip_addr)
+    return cc, cc_name
 
 def rir_lookup(ip_addr, cache_dir):
-
     ipv4arr = ip_addr.split('.')
     result = []
 
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor = conn.cursor()
 
     cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
@@ -434,7 +431,7 @@ def rir_lookup(ip_addr, cache_dir):
     return 1
 
 def lir_lookup(ip_addr, cache_dir):
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
+    conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor = conn.cursor()
 
     ipv4arr = ip_addr.split('.')
@@ -460,11 +457,9 @@ def lookup_ip_address(ip_addr, cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
         use GeoIP if available."""
 
-    if ip_address_valid(ip_addr) == False:
-        print 'Invalid ip address!'
-        return 1
-
     ip_addr = socket.gethostbyname(ip_addr)
+    if not ipv4_address_valid(ip_addr):
+        raise BlockFinderError('Invalid ip address!')
     rir_cc = ""
     print "Reverse lookup for: " + ip_addr
     if GeoIP:
@@ -479,22 +474,21 @@ def lookup_ip_address(ip_addr, cache_dir):
     rir = rir_lookup(ip_addr, cache_dir)
 
     if(rir != 1):
-        print 'RIR country code: ' + rir[0]
-        print 'RIR country: ' + rir[1]
+        print 'RIR country code:', rir[0]
+        print 'RIR country:', rir[1]
     else:
         print 'Not found in RIR db'
 
     lir = lir_lookup(ip_addr, cache_dir)
     if(lir != 1):
-        print 'LIR country code: ' + lir[0]
-        print 'LIR country code: ' + lir[1]
+        print 'LIR country code:', lir[0]
+        print 'LIR country :', lir[1]
 
     if GeoIP:
         if geoip_cc != rir_cc:
             print "It appears that the RIR data conflicts with the GeoIP data"
             print "The GeoIP data is likely closer to being correct due to " \
                   "sub-delegation issues with LIR databases"
-
 
 def return_first_ip_and_number_in_inetnum(line):
     start_ip = line.split("-")[0].strip()
