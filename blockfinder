@@ -493,7 +493,7 @@ def lookup_ip_address(ip_addr, cache_dir):
 def return_first_ip_and_number_in_inetnum(line):
     start_ip = line.split("-")[0].strip()
     end_ip = line.split("-")[1].strip()
-    num_ips = ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip)
+    num_ips = 1 + (ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip) )
     return start_ip, num_ips
 
 def create_or_replace_lir_table_in_db(cache_dir):
