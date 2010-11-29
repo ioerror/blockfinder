@@ -74,26 +74,26 @@ def fetch(url, useragent):
             return ret
         ret += tmp
 
+def create_blockfinder_cache_dir(cache_dir):
+    if not os.path.exists(cache_dir):
+        if verbose:
+            print "Initializing the cache directory..."
+        os.mkdir(cache_dir)
+
+def write_to_a_text_file(file_loc, data):
+    f = open(file_loc, 'w')
+    f.write(data)
+    f.close()
+
 def cache_delegation(cache_dir, delegation_url, useragent):
     """ Attempt to cache the contents of a delegation url in our cache dir. """
-    try:
-        os.stat(cache_dir)
-    except OSError, e:
-        if e.errno == 2:
-            if verbose:
-                print "Initializing the cache directory..."
-            os.mkdir(cache_dir)
-        else:
-            raise e
     delegation = ""
     print "Fetching " + delegation_url
     delegation = fetch(delegation_url,useragent)
     tmp = delegation_url.split('/')
     delegation_file = str(cache_dir) + str(tmp[-1])
     try:
-        f = open(delegation_file, 'w')
-        f.write(delegation)
-        f.close()
+        write_to_a_text_file(delegation_file, delegation)
         return True
     except Exception, e:
         print repr(e)
@@ -253,51 +253,39 @@ def verify_cache(cache_dir, delegation_files):
 def update_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple delegation urls and cache the contents. """
     print "Updating delegation cache..."
+
     for url in delegation_urls.split():
         cache_delegation(cache_dir, url + ".md5",useragent)
         if verify_delegation_file(cache_dir, url.rpartition('/')[-1]):
             pass
         else:
             cache_delegation(cache_dir, url,useragent)
-    return True
 
 def update_lir_delegation_cache(cache_dir, delegation_urls, useragent):
     """ Fetch multiple LIR delegation urls and cache the contents. """
     print "Updating LIR delegation cache..."
     for url in delegation_urls.split():
         cache_delegation(cache_dir, url,useragent)
-    unpack_lir_delegation_cache(cache_dir, delegation_urls)
+    unpack_a_delegation_cache(cache_dir, delegation_urls, "LIR")
 
-def unpack_lir_delegation_cache(cache_dir, delegation_urls):
+
+def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
+        gzip_file = gzip.open(gzip_file_loc, 'rb')
+        gunzipped_data = gzip_file.read()
+        gzip_file.close()
+        gunzipped_file = open(extract_file_loc, 'w')
+        gunzipped_file.writelines(gunzipped_data)
+        gunzipped_file.close()
+
+def unpack_a_delegation_cache(cache_dir, delegation_urls, del_type=""):
     """ Unpack the fetched LIR delegation files into the blockfinder cache. """
     # This probably should unlink the gzip'ed file if we care about space...
     for url in delegation_urls.split():
         gzip_filename = url.rpartition('/')[-1]
         gunziped_filename = gzip_filename.rpartition('.')[0]
         if verbose:
-            print "Unpacking LIR file " + gzip_filename + " into our cache as " + gunziped_filename
-        gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
-        gunzipped_data = gzip_file.read()
-        gzip_file.close()
-        gunzipped_file = open(cache_dir + gunziped_filename, 'w')
-        gunzipped_file.writelines(gunzipped_data)
-        gunzipped_file.close()
-
-def unpack_geoip_cache(cache_dir, geoip_urls):
-    """ Unpack the fetched GeoIP file into the blockfinder cache. """
-    # This probably should unlink the gzip'ed file if we care about space...
-    for url in geoip_urls.split():
-        gzip_filename = url.rpartition('/')[-1]
-        gunziped_filename = gzip_filename.rpartition('.')[0]
-        if verbose:
-            print "Unpacking GeoIP file " + gzip_filename + " into our cache as " + gunziped_filename
-        gzip_file = gzip.open(cache_dir + gzip_filename, 'rb')
-        gunzipped_data = gzip_file.read()
-        gzip_file.close()
-        gunzipped_file = open(cache_dir + gunziped_filename, 'w')
-        gunzipped_file.writelines(gunzipped_data)
-        gunzipped_file.close()
-    return True
+            print "Unpacking " + del_type + "file " + gzip_filename + " into our cache as " + gunziped_filename
+        extract_data_from_gzip_file(cache_dir + gzip_filename, cache_dir + gunziped_filename)
 
 def update_geoip_cache(cache_dir, geoip_urls, useragent):
     """ Fetch country level resolution GeoIP files from a given url and cache
@@ -305,7 +293,7 @@ def update_geoip_cache(cache_dir, geoip_urls, useragent):
     print "Updating GeoIP cache..."
     for url in geoip_urls.split():
         cache_delegation(cache_dir, url, useragent)
-    unpack_geoip_cache(cache_dir, geoip_urls)
+    unpack_a_delegation_cache(cache_dir, geoip_urls, "GeoIP")
 
 def load_delegation(delegation_file):
     """ Load, parse and store the delegation file contents as a list. """
@@ -336,16 +324,8 @@ def download_country_code_file(cache_dir, useragent):
     """ Download and save the latest opencountrycode XML file """
     # Google frontend will not return content-length for some reason...
     url = "http://opencountrycodes.appspot.com/xml"
-    ul = urllib2.urlopen(url)
-    xml = ul.read()
-    try:
-        f = open(cache_dir + "countrycodes.xml",'w')
-        f.write(xml)
-        f.close()
-        return True
-    except Exception,e:
-        print repr(e)
-        return False
+    xml = urllib2.urlopen(url).read()
+    write_to_a_text_file(cache_dir + "countrycodes.xml", xml)
 
 def build_country_code_dictionary(cache_dir):
     """ Return a dictionary mapping country name to the country code"""
@@ -619,8 +599,12 @@ def main():
     useragent = "Mozilla/5.0"
     ipaddress = ""
 
+    create_blockfinder_cache_dir(cache_dir)
     if not os.path.exists(cache_dir + "countrycodes.xml"):
-        download_country_code_file(cache_dir,useragent)
+        try:
+            download_country_code_file(cache_dir,useragent)
+        except Exception, e:
+            print repr(e)
 
     for o, a in opts:
         if o in ("-x", "--hack-the-internet"):
