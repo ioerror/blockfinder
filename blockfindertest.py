@@ -40,7 +40,7 @@ class CheckBlockFinder(unittest.TestCase):
     def test_ipv4_bf(self):
         blockfinder.verbose = 0
         for cc, values in self.knownResults:
-            self.result = blockfinder.use_sql_database_call("ipv4", cc.upper(), self.cache_dir)
+            self.result = blockfinder.use_sql_database("ipv4", cc.upper(), self.cache_dir)
             self.assertEqual(self.result, values)
 
 
