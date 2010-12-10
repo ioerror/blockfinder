@@ -44,7 +44,20 @@ class CheckBlockFinder(unittest.TestCase):
             self.assertEqual(self.result, values)
 
 
+class CheckBasicFunctionOperation(unittest.TestCase):
+    def test_calc_ipv4_subnet_boundary(self):
+        for i in range(0, 29):
+            host_count = 2 ** i
+            subnet = 32 - i
+            self.assertEqual(blockfinder.calculate_ipv4_subnet(host_count), subnet)
+
+    def test_calc_ipv4_subnet_not_on_boundary(self):
+            self.assertEqual(blockfinder.calculate_ipv4_subnet(254), 24)
+            self.assertEqual(blockfinder.calculate_ipv4_subnet(255), 24)
+            self.assertEqual(blockfinder.calculate_ipv4_subnet(257), 23)
+            self.assertEqual(blockfinder.calculate_ipv4_subnet(259), 23)
+
+
 if __name__ == '__main__':
     unittest.main()
-
 

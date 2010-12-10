@@ -313,6 +313,9 @@ def load_all_delegations(cache_dir, delegation_urls):
     return delegations
 
 def calculate_ipv4_subnet(host_count):
+    """ XXX: this will return incorrect values for anything above a /4
+        e.g. calculate_ipv4_subnet(536870912) will return 2 instead of 3
+    """
     return 32 - int(ceil(log(host_count,2)))
 
 def download_country_code_file(cache_dir, useragent):
