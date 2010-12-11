@@ -383,44 +383,24 @@ def geoip_lookup(cache_dir, ip_addr):
     cc_name = gi.country_name_by_addr(ip_addr)
     return cc, cc_name
 
-def rir_lookup(ip_addr, cache_dir):
+
+def rir_or_lir_lookup(ip_addr,lookup_type, cache_dir):
     ipv4arr = ip_addr.split('.')
     result = []
-
     conn = sqlite3.connect(cache_dir + "sqlitedb")
     cursor = conn.cursor()
-
-    cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+    if lookup_type == 'rir':
+        cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+    else:
+        cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
     row = cursor.fetchone()
+
     if row is None:
-        cursor.execute('select * from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + ".%",))
+        if lookup_type == "rir":
+            cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ? ', (ipv4arr[0] + ".%",))
+        else:
+            cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
         row = cursor.fetchone()
-
-    while(row is not None):
-        if(ip_address_to_dec(row[2]) <= ip_address_to_dec(ip_addr) < (ip_address_to_dec(row[2])+row[
-3])):
-            rir_cc = row[1]
-            rir_cc_name = get_name_from_country_code(cache_dir, row[1])
-            result.append(rir_cc)
-            result.append(rir_cc_name)
-            cursor.close()
-            return result
-        row = cursor.fetchone()
-    cursor.close()
-
-def lir_lookup(ip_addr, cache_dir):
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor = conn.cursor()
-
-    ipv4arr = ip_addr.split('.')
-    result = []
-
-    cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
-    row = cursor.fetchone()
-    if row is None:
-        cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
-        row = cursor.fetchone()
-
 
     while(row is not None):
         if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
@@ -430,6 +410,12 @@ def lir_lookup(ip_addr, cache_dir):
             return result
         row = cursor.fetchone()
     cursor.close()
+
+def rir_lookup(ip_addr, cache_dir):
+    return rir_or_lir_lookup(ip_addr, "rir", cache_dir)
+
+def lir_lookup(ip_addr, cache_dir):
+    return rir_or_lir_lookup(ip_addr, "lir", cache_dir)
 
 def lookup_ip_address(ip_addr, cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
