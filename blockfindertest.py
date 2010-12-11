@@ -2,6 +2,10 @@
 import blockfinder
 import unittest
 import os
+try:
+    import IPy
+except ImportError:
+    IPy = None
 
 class CheckReverseLookup(unittest.TestCase):
 
@@ -43,7 +47,6 @@ class CheckBlockFinder(unittest.TestCase):
             self.result = blockfinder.use_sql_database("ipv4", cc.upper(), self.cache_dir)
             self.assertEqual(self.result, values)
 
-
 class CheckBasicFunctionOperation(unittest.TestCase):
     def test_calc_ipv4_subnet_boundary(self):
         for i in range(0, 29):
@@ -57,6 +60,21 @@ class CheckBasicFunctionOperation(unittest.TestCase):
         self.assertEqual(blockfinder.calculate_ipv4_subnet(257), 23)
         self.assertEqual(blockfinder.calculate_ipv4_subnet(259), 23)
 
+    def test_ipv4_address_to_dec(self):
+        self.assertEqual(blockfinder.ip_address_to_dec("0.0.0.0"), 0)
+        self.assertEqual(blockfinder.ip_address_to_dec("4.2.2.2"), 67240450)
+        self.assertEqual(blockfinder.ip_address_to_dec("217.204.232.15"), 3654084623)
+        self.assertEqual(blockfinder.ip_address_to_dec("255.255.255.255"), 4294967295)
+
+    def test_ipv4_address_to_dec_against_IPy(self):
+        if IPy is not None:
+            for i in range(0, 255):
+                ipaddr = "%s.%s.%s.%s" % (i, i, i, i)
+                self.assertEqual(blockfinder.ip_address_to_dec(ipaddr), IPy.IP(ipaddr).int())
+
+    def test_return_first_ip_and_number_in_inetnum(self):
+        line = "1.1.1.1 - 1.1.1.2"
+        self.assertEqual(blockfinder.return_first_ip_and_number_in_inetnum(line), ("1.1.1.1", 2) )
 
 if __name__ == '__main__':
     unittest.main()
