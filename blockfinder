@@ -448,6 +448,7 @@ def lookup_ip_address(ip_addr, cache_dir):
     rir = rir_lookup(ip_addr, cache_dir)
 
     if rir:
+        rir_cc = rir[0]
         print 'RIR country code:', rir[0]
         print 'RIR country:', rir[1]
     else:
