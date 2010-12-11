@@ -403,10 +403,10 @@ def rir_lookup(ip_addr, cache_dir):
             rir_cc_name = get_name_from_country_code(cache_dir, row[1])
             result.append(rir_cc)
             result.append(rir_cc_name)
+            cursor.close()
             return result
         row = cursor.fetchone()
     cursor.close()
-    return 1
 
 def lir_lookup(ip_addr, cache_dir):
     conn = sqlite3.connect(cache_dir + "sqlitedb")
@@ -426,10 +426,10 @@ def lir_lookup(ip_addr, cache_dir):
         if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
             result.append(row[0])
             result.append(get_name_from_country_code(cache_dir, row[0]))
+            cursor.close()
             return result
         row = cursor.fetchone()
     cursor.close()
-    return 1
 
 def lookup_ip_address(ip_addr, cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
@@ -447,14 +447,14 @@ def lookup_ip_address(ip_addr, cache_dir):
 
     rir = rir_lookup(ip_addr, cache_dir)
 
-    if(rir != 1):
+    if rir:
         print 'RIR country code:', rir[0]
         print 'RIR country:', rir[1]
     else:
         print 'Not found in RIR db'
 
     lir = lir_lookup(ip_addr, cache_dir)
-    if(lir != 1):
+    if lir:
         print 'LIR country code:', lir[0]
         print 'LIR country :', lir[1]
 
