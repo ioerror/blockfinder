@@ -445,10 +445,6 @@ def lookup_ip_address(ip_addr, cache_dir):
         print "GeoIP country code: " + str(geoip_cc)
         print "GeoIP country name: " + str(geoip_cc_name)
 
-    ipv4arr = ip_addr.split('.')
-    if len(ipv4arr) != 4:
-       print """doesn't look like an ipv4 address.."""
-       sys.exit(5)
     rir = rir_lookup(ip_addr, cache_dir)
 
     if(rir != 1):
