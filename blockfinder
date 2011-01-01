@@ -189,10 +189,11 @@ def use_sql_database(request, cc, cache_dir):
             result.append(str(row[0]) + "/" + str(int(row[1])))
         else:
             result.append(str(int(row[0])))
+    result.sort()
     if verbose:
-        print "We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir)
+        result.append("We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir) )
         cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
-        print "We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] )
+        result.append("We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] ) )
     cursor.close()
     return result
 
