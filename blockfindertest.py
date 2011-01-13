@@ -2,23 +2,39 @@
 import blockfinder
 import unittest
 import os
+import shutil
+import test_data
+
 try:
     import IPy
 except ImportError:
     IPy = None
 
-class CheckReverseLookup(unittest.TestCase):
 
+class BlockFinderTestExtras:
+    def __init__(self, test_dir="/tmp/blockfinder_test/"):
+        self.test_dir = test_dir
+        assert self.test_dir == "/tmp/blockfinder_test/", "if you want to change the test directory you will need to change this line!"
+
+    def create_new_test_cache_dir(self):
+        shutil.rmtree(self.test_dir, True)
+        blockfinder.create_blockfinder_cache_dir(self.test_dir)
+        blockfinder.create_sql_database(self.test_dir)
+
+    def load_del_test_data(self):
+        delegations = [test_data.return_sub_apnic_del()]
+        blockfinder.insert_into_sql_database(delegations, self.test_dir)
+
+class CheckReverseLookup(unittest.TestCase):
     ipValues = ( (3229318011, '192.123.123.123'),
-                    (3463778365, '206.117.16.61'),
-                    (4278190202, '255.0.0.122'),
-                  (3654084623, '217.204.232.15'),
-                  (134217728, '8.0.0.0'))
+            (3463778365, '206.117.16.61'),
+            (4278190202, '255.0.0.122'),
+            (3654084623, '217.204.232.15'),
+            (134217728, '8.0.0.0'))
 
     rirValues = ( ('217.204.232.15', 'GB'),
-                  ('188.72.225.100', 'DE'),
-                  ('8.8.8.1', 'US'))
-
+            ('188.72.225.100', 'DE'),
+            ('8.8.8.1', 'US'))
     cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
 
     def test_rir_lookup(self):
@@ -32,20 +48,29 @@ class CheckReverseLookup(unittest.TestCase):
             self.assertEqual(result, dec)
 
 class CheckBlockFinder(unittest.TestCase):
-    cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
+    def setUp(self):
+        blockfinder.verbose = False
 
+        extra_block_test_f = BlockFinderTestExtras()
+        self.cache_dir = extra_block_test_f.test_dir
+
+        extra_block_test_f.create_new_test_cache_dir()
+        extra_block_test_f.load_del_test_data()
 
     # You can add known blocks to the tuple as a list
     # they will be looked up and checked
-    knownResults = ( ('mm', ['203.81.64.0/19',
-                            '203.81.160.0/20']),
-                    ('kp', ['175.45.176.0/22']))
+    known_ipv4_Results = ( ('mm', ['203.81.160.0/20', '203.81.64.0/19']),
+                             ('kp', ['175.45.176.0/22']))
 
     def test_ipv4_bf(self):
-        blockfinder.verbose = 0
-        for cc, values in self.knownResults:
-            self.result = blockfinder.use_sql_database("ipv4", cc.upper(), self.cache_dir)
-            self.assertEqual(self.result, values)
+        for cc, values in self.known_ipv4_Results:
+            result = blockfinder.use_sql_database("ipv4", cc.upper(), self.cache_dir)
+            self.assertEqual(result, values)
+
+    def test_ipv6_bf(self):
+        expected = ['2001:200:2000::/35', '2001:200:4000::/34', '2001:200:8000::/33', '2001:200::/35']
+        result = blockfinder.use_sql_database("ipv6", "JP", self.cache_dir)
+        self.assertEqual(result, expected)
 
 class CheckBasicFunctionOperation(unittest.TestCase):
     def test_calc_ipv4_subnet_boundary(self):
@@ -77,5 +102,6 @@ class CheckBasicFunctionOperation(unittest.TestCase):
         self.assertEqual(blockfinder.return_first_ip_and_number_in_inetnum(line), ("1.1.1.1", 2) )
 
 if __name__ == '__main__':
-    unittest.main()
+    for test_class in [CheckReverseLookup, CheckBlockFinder, CheckBasicFunctionOperation]:
+        unittest.TextTestRunner(verbosity=2).run(unittest.makeSuite(test_class))
 
