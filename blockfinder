@@ -5,7 +5,7 @@
 import urllib2
 import os
 import time
-import getopt
+from optparse import OptionParser
 import sys
 from math import ceil, log
 import sqlite3
@@ -507,56 +507,58 @@ def create_db_and_insert_delegation_into_db(cache_dir, delegation_urls):
         delegations = load_all_delegations(cache_dir, delegation_urls)
         insert_into_sql_database(delegations, cache_dir)
 
-
-def usage():
-    """ Print usage information. """
-    print >> sys.stderr, """
-blockfinder  [-c DIR] -i
-blockfinder [options] -t COUNTRY
-
-The first form initializes the local cache. The second form queries it.
-
-Understood options (not all of which are implemented yet):
-    -h, --help          Show this help and exit
-    -v                  Be verbose
-    -c, --cachedir DIR  Set the cache directory
-    -u, --useragent
-    -p, --progress
-    -o, --output FILE
-    -4, --ipv4          Search IPv4 allocations
-    -6, --ipv6          Search IPv6 allocation
-    -a, --asn           Search ASN allocations
-    -t, --nation-state CC  Set the country to search (given as a two-letter code)
-    -n, --country-name "Costa Rica"  Set country to search (full name)
-    -x, --hack-the-internet          Hack the internet
-    -r, --reverse-lookup    Return the county name for the specified IP
-    -i, --initialize-delegation    Initialize or update delegation information
-    -l, --initialize-lir    Initialize or update lir information
-    -d, --reload-delegation    Use existing delegation files to update the database
-
-At least one of -t or -i is required, and when in -t mode, at least one of -4,
--6, and -a is required in order to do anything sensible.
-"""
-
 def main():
     """ Where the magic starts. """
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "dlxvhc:u:pso:46at:n:ir:",
-                                   ["reload-delegation", "initialize-lir", "hack-the-internet",
-                                   "verbose", "help", "cachedir=", "useragent=", "progress",
-                                   "silent", "output=", "ipv4", "ipv6","asn", "nation-state=",
-                                   "country-name", "initialize-delegation","reverse-lookup"])
-    except getopt.GetoptError, err:
-        print str(err)
-        usage()
-        sys.exit(2)
+
+    parser = OptionParser()
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", \
+            help = "Be verbose", default=False)
+
+    parser.add_option("-c", "--cachedir", action="store", dest="cache_dir", \
+            help = "Set the cache directory", default= str(os.path.expanduser('~')) + "/.blockfinder/" )
+
+    parser.add_option("-u","--useragent", action="store", dest="useragent", \
+            help = "Provide a useragent which will be used when fetching delegation files" , \
+            default="Mozilla/5.0")
+
+    parser.add_option("-4", "--ipv4", action="store_true", dest="ipv4", \
+            help = "Search IPv4 allocations")
+
+    parser.add_option("-6", "--ipv6", action="store_true", dest="ipv6", \
+            help = "Search IPv6 allocations")
+
+    parser.add_option("-a", "--asn", action="store_true", dest="asn", \
+            help = "Search ASN allocations")
+
+    parser.add_option("-t", "--nation-state", action="store", dest="cc", \
+            help = "Set the country to search (given as a two-letter code)")
+
+    parser.add_option("-n", "--country-name", action="store", dest="country_name", \
+            help = "Set country to search (full name)")
+
+    parser.add_option("-x", "--hack-the-internet", action="store_true", dest="hack_the_internet", \
+            help = "Hack the internet")
+
+    parser.add_option("-r", "--reverse-lookup", action="store", dest="reverse_host", \
+            help = "Return the county name for the specified IP or hostname")
+
+    parser.add_option("-i", "--initialize-delegation", action="store_true", dest="init_del", \
+            help = "Initialize or update delegation information")
+
+    parser.add_option("-l", "--initialize-lir", action="store_true", dest="init_lir", \
+            help = "Initialize or update lir information")
+
+    parser.add_option("-d", "--reload-delegation", action="store_true", dest="reload_del", \
+            help = "Use existing delegation files to update the database")
+
+    (options, args) = parser.parse_args()
 
     global verbose
-    verbose = False
-    output = None
-    silent = True
-    cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
-    update_delegations = False
+    verbose = options.verbose
+    useragent = options.useragent
+    cache_dir = options.cache_dir
+
+    requests = []
     delegation_urls = """
         ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
         ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
@@ -573,79 +575,49 @@ def main():
     for url in delegation_urls.split():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
-    update_delegations = False
-    update_lir = False
-    reload_delegation_db = False
-    requests = []
-    country = ""
-    useragent = "Mozilla/5.0"
-    ipaddress = ""
 
     create_blockfinder_cache_dir(cache_dir)
     if not os.path.exists(cache_dir + "countrycodes.xml"):
         try:
-            download_country_code_file(cache_dir,useragent)
+            download_country_code_file(cache_dir, useragent)
         except Exception, e:
             print repr(e)
 
-    for o, a in opts:
-        if o in ("-x", "--hack-the-internet"):
-            print "all your bases are belong to us!"
-            sys.exit(4)
-        if o == "-v":
-            verbose = True
-        elif o in ("-h", "--help"):
-            usage()
-            sys.exit()
-        elif o in ("-c", "--cachedir"):
-            cache_dir = a
-        elif o in ("-u", "--useragent"):
-            useragent = a
-        elif o in ("-p", "--progress"):
-            progress = True
-        elif o in ("-s", "--silent"):
-            silent = True
-        elif o in ("-o", "--output"):
-            output = a
-        elif o in ("-4", "--ipv4"):
-            requests.append("ipv4")
-        elif o in ("-6", "--ipv6"):
-            requests.append("ipv6")
-        elif o in ("-a", "--asn"):
-            requests.append("asn")
-        # XXX TODO: This should be a positional argument as it's the only manditory one...
-        elif o in ("-r", "--reverse-lookup"):
-            ipaddress = a
-            requests.append("reverse")
-        elif o in ("-t", "--nation-state"):
-            country = a.upper()
-        elif o in ("-n", "--country-name"):
-            country = get_country_code_from_name(cache_dir, a)
-        elif o in ("-i", "--initialize-delegations"):
-            update_delegations = True
-        elif o in ("-l", "--initialize-lir"):
-            update_lir = True
-        elif o in ("-d", "--reload-delegation"):
-            reload_delegation_db = True
-        else:
-            print "Unhandled option; Sorry!"
-            sys.exit(3)
 
-    if reload_delegation_db:
+    if options.hack_the_internet:
+            print "all your bases are belong to us!"
+
+    if options.reverse_host:
+        lookup_ip_address(options.reverse_host, cache_dir)
+        sys.exit(0)
+
+    if options.ipv4:
+        requests.append("ipv4")
+    if options.ipv6:
+        requests.append("ipv6")
+    if options.asn:
+        requests.append("asn")
+
+    if options.cc:
+        country = options.cc.upper()
+    if options.country_name:
+        country = get_country_code_from_name(cache_dir, options.country_name)
+
+    if options.reload_del:
         create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
         sys.exit(0)
 
     # Update and quit.
-    if update_delegations:
+    if options.init_del:
         if GeoIP:
-            update_geoip_cache(cache_dir,geoip_country_urls,useragent)
-        update_delegation_cache(cache_dir,delegation_urls,useragent)
+            update_geoip_cache(cache_dir, geoip_country_urls, useragent)
+        update_delegation_cache(cache_dir, delegation_urls, useragent)
         if verbose:
             verify_cache(cache_dir, delegation_files)
         create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
-        if not update_lir:
+        if not options.init_lir:
             sys.exit(0)
-    if update_lir:
+    if options.init_lir:
         update_lir_delegation_cache(cache_dir,lir_urls,useragent)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
         create_or_replace_lir_table_in_db(cache_dir)
@@ -658,9 +630,6 @@ def main():
         print "Example usage: blockfinder -v --ipv4 -t mm"
         sys.exit(1)
 
-    if ipaddress:
-        lookup_ip_address(ipaddress,cache_dir)
-        sys.exit(0)
     if not country:
         print "It appears your search did not match a country."
         sys.exit(1)
