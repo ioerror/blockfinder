@@ -421,7 +421,7 @@ def lookup_ip_address(ip_addr, cache_dir):
     """ Return the country code and name for a given ip address. Attempts to
         use GeoIP if available."""
 
-    ip_addr = socket.gethostbyname(ip_addr)
+    ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
     if not ipv4_address_valid(ip_addr):
         raise BlockFinderError('Invalid ip address!')
     rir_cc = ""
