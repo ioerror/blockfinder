@@ -15,15 +15,25 @@ class BlockFinderTestExtras:
     def __init__(self, test_dir="/tmp/blockfinder_test/"):
         self.test_dir = test_dir
         assert self.test_dir == "/tmp/blockfinder_test/", "if you want to change the test directory you will need to change this line!"
+        self.block_f = blockfinder.Blockfinder(self.test_dir, "Mozilla")
 
     def create_new_test_cache_dir(self):
         shutil.rmtree(self.test_dir, True)
-        blockfinder.create_blockfinder_cache_dir(self.test_dir)
-        blockfinder.create_sql_database(self.test_dir)
+        self.block_f.create_blockfinder_cache_dir()
+        self.block_f.connect_to_database()
+        self.block_f.create_sql_database()
 
     def load_del_test_data(self):
         delegations = [test_data.return_sub_apnic_del()]
-        blockfinder.insert_into_sql_database(delegations, self.test_dir)
+        self.block_f.insert_into_sql_database(delegations)
+
+    def load_lir_test_data(self):
+        self.block_f.update_lir_delegation_cache("http://d1b.org/other/pub/tests/blockfinder/tiny_lir_data_for_test.gz")
+        self.block_f.create_or_replace_lir_table_in_db()
+        self.block_f.extract_info_from_lir_file_and_insert_into_sqlite("tiny_lir_data_for_test")
+
+    def copy_country_code_xml(self):
+        shutil.copy(str(os.path.expanduser('~')) + "/.blockfinder/countrycodes.xml", self.block_f.cache_dir + "countrycodes.xml")
 
 class CheckReverseLookup(unittest.TestCase):
     ipValues = ( (3229318011, '192.123.123.123'),
@@ -33,13 +43,15 @@ class CheckReverseLookup(unittest.TestCase):
             (134217728, '8.0.0.0'))
 
     rirValues = ( ('217.204.232.15', 'GB'),
-            ('188.72.225.100', 'DE'),
-            ('8.8.8.1', 'US'))
-    cache_dir = str(os.path.expanduser('~')) + "/.blockfinder/"
+                  ('188.72.225.100', 'DE'),
+                  ('8.8.8.1', 'US'))
+    def setUp(self):
+        self.block_f = blockfinder.Blockfinder(str(os.path.expanduser('~')) + "/.blockfinder/", "Mozilla")
+        self.block_f.connect_to_database()
 
     def test_rir_lookup(self):
         for ip, cc in self.rirValues:
-            result = blockfinder.rir_lookup(ip, self.cache_dir)
+            result = self.block_f.rir_lookup(ip)
             self.assertEqual(result[0], cc)
 
     def test_ip_address_to_dec(self):
@@ -47,15 +59,14 @@ class CheckReverseLookup(unittest.TestCase):
             result = blockfinder.ip_address_to_dec(ip)
             self.assertEqual(result, dec)
 
+
 class CheckBlockFinder(unittest.TestCase):
     def setUp(self):
-        blockfinder.verbose = False
+        self.extra_block_test_f = BlockFinderTestExtras()
+        self.block_f = blockfinder.Blockfinder(self.extra_block_test_f.test_dir, "Mozilla")
 
-        extra_block_test_f = BlockFinderTestExtras()
-        self.cache_dir = extra_block_test_f.test_dir
-
-        extra_block_test_f.create_new_test_cache_dir()
-        extra_block_test_f.load_del_test_data()
+        self.extra_block_test_f.create_new_test_cache_dir()
+        self.extra_block_test_f.load_del_test_data()
 
     # You can add known blocks to the tuple as a list
     # they will be looked up and checked
@@ -63,14 +74,37 @@ class CheckBlockFinder(unittest.TestCase):
                              ('kp', ['175.45.176.0/22']))
 
     def test_ipv4_bf(self):
+        self.block_f.connect_to_database()
         for cc, values in self.known_ipv4_Results:
-            result = blockfinder.use_sql_database("ipv4", cc.upper(), self.cache_dir)
+            result = self.block_f.use_sql_database("ipv4", cc.upper())
             self.assertEqual(result, values)
-
+        self.block_f.conn.close()
     def test_ipv6_bf(self):
+        self.block_f.connect_to_database()
         expected = ['2001:200:2000::/35', '2001:200:4000::/34', '2001:200:8000::/33', '2001:200::/35']
-        result = blockfinder.use_sql_database("ipv6", "JP", self.cache_dir)
+        result = self.block_f.use_sql_database("ipv6", "JP")
         self.assertEqual(result, expected)
+        self.block_f.conn.close()
+
+    def test_lir_fetching_and_use_ipv4(self):
+        self.block_f.connect_to_database()
+        self.extra_block_test_f.load_lir_test_data()
+        self.extra_block_test_f.copy_country_code_xml()
+        self.assertEqual(self.block_f.rir_or_lir_lookup("80.16.151.184", "LIR"), ["IT", "Italy"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup("80.16.151.180", "LIR"), ["IT", "Italy"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup("213.95.6.32", "LIR"), ["DE", "Germany"])
+        self.block_f.conn.close()
+
+    def test_lir_fetching_and_use_ipv6(self):
+        """ ipv6 - presently these will fail """
+        self.block_f.connect_to_database()
+        self.extra_block_test_f.load_lir_test_data()
+        self.extra_block_test_f.copy_country_code_xml()
+        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:0658:021A::", "LIR"), ["DE", "Germany"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:67c:320::", "LIR", "6"), ["DE", "Germany"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:670:0085::", "LIR", "6"), ["FI", "Finland"])
+        self.block_f.conn.close()
+
 
 class CheckBasicFunctionOperation(unittest.TestCase):
     def test_calc_ipv4_subnet_boundary(self):

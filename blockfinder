@@ -43,8 +43,8 @@ def update_progress_bar(percent_done, caption=""):
                                     caption) )
     sys.stdout.flush()
 
-# XXX TODO:allow the use of a proxy
-# Set up a proper Request object, set the user agent and if desired, a proxy
+    # XXX TODO:allow the use of a proxy
+    # Set up a proper Request object, set the user agent and if desired, a proxy
 def fetch(url, useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
     req = urllib2.Request(url)
@@ -74,281 +74,415 @@ def fetch(url, useragent):
             return ret
         ret += tmp
 
-def create_blockfinder_cache_dir(cache_dir):
-    if not os.path.exists(cache_dir):
-        if verbose:
-            print "Initializing the cache directory..."
-        os.mkdir(cache_dir)
-
 def write_to_a_text_file(file_loc, data):
     f = open(file_loc, 'w')
     f.write(data)
     f.close()
 
-def cache_delegation(cache_dir, delegation_url, useragent):
-    """ Attempt to cache the contents of a delegation url in our cache dir. """
-    delegation = ""
-    print "Fetching " + delegation_url
-    delegation = fetch(delegation_url,useragent)
-    tmp = delegation_url.split('/')
-    delegation_file = str(cache_dir) + str(tmp[-1])
-    try:
-        write_to_a_text_file(delegation_file, delegation)
-        return True
-    except Exception, e:
-        print repr(e)
-        return False
-
-def cache_is_dated(cache_dir, cached_files):
-    """ Returns True if the mtime of any files in cache dir is > 24hrs."""
-    try:
-        os.stat(cache_dir)
-    except OSError, e:
-        print "\nDid you initialize the cache directory?\n"
-        raise e
-    for file in cached_files:
-        fstat = os.stat(cache_dir + file)
-        if (time.time() - fstat.st_mtime) > 86400:
-            return True
-    return False
-
-def create_sql_database(cache_dir):
-    """ Creates a new sqlite database.
-         If there is a previous sqlite database it will be deleted. """
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor = conn.cursor()
-    for table in ["ipv4", "ipv6", "asn"]:
-        cursor.execute("""drop table if exists """ + table)
-    cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
-    cursor.execute("""create table ipv4(registry text, cc text, start text, value INTEGER, date text, status text)""")
-    cursor.execute("""create table ipv6(registry text, cc text, start text, value INTEGER, date text, status text)""")
-    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
-    conn.commit()
-    cursor.close()
-
-def insert_into_sql_database(delegations,cache_dir):
-    """ inserts delegation information into the sqlite database"""
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
-    cursor = conn.cursor()
-    table = ""
-    for delegation in delegations:
-        for entry in delegation:
-            registry = str(entry['registry'])
-            if not registry.isdigit() and str (entry['cc']) !="*":
-                if entry['type'] == "ipv6":
-                    table = "ipv6"
-                if entry['type'] == "ipv4":
-                    table = "ipv4"
-                if entry['type'] == "asn":
-                    table = "asn"
-                text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
-                data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
-                cursor.execute(text, data  )
-    conn.commit()
-    cursor.close()
-
-def get_total_delegations_from_db(cache_dir):
-    """ Returns the total count of the number of entries in the ipv4, ipv6 and asn table """
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
-    cursor = conn.cursor()
-    count = 0
-    table_names = ["ipv4", "ipv6", "asn"]
-    for table in table_names:
-        cursor.execute("""select count (*)  from """ + table)
-        count += int (cursor.fetchone()[0] )
-    cursor.close()
-    return count
-
-def get_possible_match_entries(cc,cache_dir):
-    """ Get the count of 'possible' matching delegation entries"""
-    conn = sqlite3.connect(cache_dir +"sqlitedb")
-    cursor = conn.cursor()
-    count = 0
-    table_names =["ipv4", "ipv6", "asn"]
-    for table in table_names:
-        cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
-        count += int (cursor.fetchone()[0] )
-    cursor.close()
-    return count
-
-def use_sql_database(request, cc, cache_dir):
-    """ Use the sqlite database that is created after fetching delegations
-        to output information for a given request """
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor = conn.cursor()
-    if verbose:
-        print "We have %d entries in our delegation cache." %get_total_delegations_from_db(cache_dir)
-    text ="""select start,value from """ + request + """ where cc=?"""
-    cc = (cc,)
-    cursor.execute(text,cc)
-    result = []
-    for row in cursor:
-        if request == "ipv4":
-            result.append(str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1]))))
-        elif request == "ipv6":
-            result.append(str(row[0]) + "/" + str(int(row[1])))
-        else:
-            result.append(str(int(row[0])))
-    result.sort()
-    if verbose:
-        result.append("We found %d possible entries in our delegation cache." % get_possible_match_entries(cc, cache_dir) )
-        cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
-        result.append("We found %d matching entries in our delegation cache." % int (cursor.fetchone()[0] ) )
-    cursor.close()
-    return result
-
-def get_md5_from_delegation_md5_file(cache_dir, delegation_file):
-    """ Returns the md5sum from the delegation md5 file
-        if it doesn't exist it returns an empty string"""
-    checksum = ""
-    try:
-        f = open(cache_dir + delegation_file + ".md5", "r")
-        checksum = f.read()
-        f.close()
-        if delegation_file == "delegated-afrinic-latest":
-            pos =  checksum.find(" ")
-            checksum = str (checksum[:pos])
-        else:
-            pos = checksum.find("=") +2
-            checksum = str (checksum[pos:-1])
-    except Exception, e:
-        print repr(e)
-    return checksum
-
-def verify_delegation_file(cache_dir, delegation_file):
-    """ compares the delegation file md5sum to that of the provided md5sum
-       returns True if they match otherwise returns False """
-    checksum = ""
-    checksum_of_file = ""
-    try:
-        f = open(cache_dir + delegation_file, "rb")
-        checksum_of_file = str (hashlib.md5(f.read()).hexdigest() )
-        f.close()
-    except Exception, e:
-        print repr(e)
-    checksum = get_md5_from_delegation_md5_file(cache_dir,delegation_file)
-    if checksum != checksum_of_file:
-        return False
-    if checksum == checksum_of_file and checksum != "":
-        return True
-    return False
-
-def verify_cache(cache_dir, delegation_files):
-    """ if in verbose mode prints the result of checking the checksum of the
-        delegation files """
-    for file in delegation_files:
-        if verbose:
-            print "verifying " + file
-        if verify_delegation_file(cache_dir,file):
-            if verbose:
-                print "the md5 checksum of " + file + " *matches* the provided checksum"
-        else:
-            if verbose:
-                print "the md5 checksum of " + file + " does *not* match the provided checksum"
-
-def update_delegation_cache(cache_dir, delegation_urls, useragent):
-    """ Fetch multiple delegation urls and cache the contents. """
-    print "Updating delegation cache..."
-
-    for url in delegation_urls.split():
-        cache_delegation(cache_dir, url + ".md5",useragent)
-        if verify_delegation_file(cache_dir, url.rpartition('/')[-1]):
-            pass
-        else:
-            cache_delegation(cache_dir, url,useragent)
-
-def update_lir_delegation_cache(cache_dir, delegation_urls, useragent):
-    """ Fetch multiple LIR delegation urls and cache the contents. """
-    print "Updating LIR delegation cache..."
-    for url in delegation_urls.split():
-        cache_delegation(cache_dir, url,useragent)
-    unpack_a_delegation_cache(cache_dir, delegation_urls, "LIR")
-
-
-def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
-        gzip_file = gzip.open(gzip_file_loc, 'rb')
-        gunzipped_data = gzip_file.read()
-        gzip_file.close()
-        gunzipped_file = open(extract_file_loc, 'w')
-        gunzipped_file.writelines(gunzipped_data)
-        gunzipped_file.close()
-
-def unpack_a_delegation_cache(cache_dir, delegation_urls, del_type=""):
-    """ Unpack the fetched LIR delegation files into the blockfinder cache. """
-    # This probably should unlink the gzip'ed file if we care about space...
-    for url in delegation_urls.split():
-        gzip_filename = url.rpartition('/')[-1]
-        gunziped_filename = gzip_filename.rpartition('.')[0]
-        if verbose:
-            print "Unpacking " + del_type + "file " + gzip_filename + " into our cache as " + gunziped_filename
-        extract_data_from_gzip_file(cache_dir + gzip_filename, cache_dir + gunziped_filename)
-
-def update_geoip_cache(cache_dir, geoip_urls, useragent):
-    """ Fetch country level resolution GeoIP files from a given url and cache
-    the contents. Unpack it if it's compressed. """
-    print "Updating GeoIP cache..."
-    for url in geoip_urls.split():
-        cache_delegation(cache_dir, url, useragent)
-    unpack_a_delegation_cache(cache_dir, geoip_urls, "GeoIP")
-
-def load_delegation(delegation_file):
-    """ Load, parse and store the delegation file contents as a list. """
-    keys = "registry cc type start value date status"
-    try:
-        f = open(delegation_file, "r")
-        delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
-                        for line in f.readlines() if not line.startswith("#")]
-        f.close()
-        return delegations
-    except OSError, e:
-        print repr(e)
-
-def load_all_delegations(cache_dir, delegation_urls):
-    """ Load all delegations into memory. """
-    delegations = []
-    for url in delegation_urls.split():
-        filename = url.rpartition('/')[-1]
-        if verbose:
-            print "Attempting to load delegation file into memory: " + filename
-        delegations.append(load_delegation(cache_dir + filename))
-    return delegations
-
 def calculate_ipv4_subnet(host_count):
     """ XXX: this will return incorrect values for anything above a /4
-        e.g. calculate_ipv4_subnet(536870912) will return 2 instead of 3
+    e.g. calculate_ipv4_subnet(536870912) will return 2 instead of 3
     """
     return 32 - int(ceil(log(host_count,2)))
 
-def download_country_code_file(cache_dir, useragent):
-    """ Download and save the latest opencountrycode XML file """
-    # Google frontend will not return content-length for some reason...
-    url = "http://opencountrycodes.appspot.com/xml"
-    xml = urllib2.urlopen(url).read()
-    write_to_a_text_file(cache_dir + "countrycodes.xml", xml)
+def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
+    gzip_file = gzip.open(gzip_file_loc, 'rb')
+    gunzipped_data = gzip_file.read()
+    gzip_file.close()
+    gunzipped_file = open(extract_file_loc, 'w')
+    gunzipped_file.writelines(gunzipped_data)
+    gunzipped_file.close()
 
-def build_country_code_dictionary(cache_dir):
-    """ Return a dictionary mapping country name to the country code"""
-    map_co = {}
-    xml_file = str(cache_dir) + "countrycodes.xml"
-    clist = minidom.parse(xml_file)
-    for country in clist.getElementsByTagName("country"):
-        code = country.attributes["code"]
-        name = country.attributes["name"]
-        map_co[name.value] = code.value
-    return map_co
+def read_data_from_binary_file(fname):
+    f = open(fname, 'rb')
+    data = f.read()
+    f.close()
+    return data
 
-def get_name_from_country_code(cache_dir, cc_code):
-    map_co = build_country_code_dictionary(cache_dir)
-    country_name = [(key, value) for (key, value) in map_co.items() if value == cc_code]
-    if len(country_name) > 0:
-        return country_name[0][0]
+class Blockfinder(object):
 
-def get_country_code_from_name(cache_dir, country_name):
-    """ Return the country code for a given country name. """
-    map_co = build_country_code_dictionary(cache_dir)
-    cc_code = [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
-    if len(cc_code) > 0:
-        return cc_code[0]
+    def __init__(self, cache_dir, useragent, verbose=False):
+        self.cache_dir = cache_dir
+        self.useragent = useragent
+        self.cursor = None
+        self.conn = None
+        self.verbose = verbose
+
+    def create_blockfinder_cache_dir(self):
+        if not os.path.exists(self.cache_dir):
+            if self.verbose:
+                print "Initializing the cache directory..."
+            os.mkdir(self.cache_dir)
+
+    def cache_delegation(self, delegation_url):
+        """ Attempt to cache the contents of a delegation url in our cache dir. """
+        delegation = ""
+        print "Fetching " + delegation_url
+        delegation = fetch(delegation_url, self.useragent)
+        tmp = delegation_url.split('/')
+        delegation_file = str(self.cache_dir) + str(tmp[-1])
+        try:
+            write_to_a_text_file(delegation_file, delegation)
+            return True
+        except Exception, e:
+            print repr(e)
+            return False
+
+    def cache_is_dated(self, cached_files):
+        """ Returns True if the mtime of any files in cache dir is > 24hrs."""
+        try:
+            os.stat(self.cache_dir)
+        except OSError, e:
+            print "\nDid you initialize the cache directory?\n"
+            raise e
+        for file in cached_files:
+            fstat = os.stat(self.cache_dir + file)
+            if (time.time() - fstat.st_mtime) > 86400:
+                return True
+        return False
+
+
+    def connect_to_database(self):
+        self.conn = sqlite3.connect(self.cache_dir + "sqlitedb")
+        self.cursor = self.conn.cursor()
+
+    def commit_and_close_database(self):
+        self.conn.commit()
+        self.cursor.close()
+
+    def create_sql_database(self):
+        """ Creates a new sqlite database.
+             If there is a previous sqlite database it will be deleted. """
+        for table in ["ipv4", "ipv6", "asn"]:
+            self.cursor.execute("""drop table if exists """ + table)
+        self.cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
+        self.cursor.execute("""create table ipv4(registry text, cc text, start text, value INTEGER, date text, status text)""")
+        self.cursor.execute("""create table ipv6(registry text, cc text, start text, value INTEGER, date text, status text)""")
+        self.cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+        self.conn.commit()
+
+    def insert_into_sql_database(self, delegations):
+        """ inserts delegation information into the sqlite database"""
+        table = ""
+        for delegation in delegations:
+            for entry in delegation:
+                registry = str(entry['registry'])
+                if not registry.isdigit() and str (entry['cc']) !="*":
+                    if entry['type'] == "ipv6":
+                        table = "ipv6"
+                    if entry['type'] == "ipv4":
+                        table = "ipv4"
+                    if entry['type'] == "asn":
+                        table = "asn"
+                    text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
+                    data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
+                    self.cursor.execute(text, data)
+        self.conn.commit()
+
+    def get_total_delegations_from_db(self):
+        """ Returns the total count of the number of entries in the ipv4, ipv6 and asn table """
+        count = 0
+        table_names = ["ipv4", "ipv6", "asn"]
+        for table in table_names:
+            self.cursor.execute("""select count (*)  from """ + table)
+            count += int (self.cursor.fetchone()[0] )
+        return count
+
+    def get_possible_match_entries(self, cc):
+        """ Get the count of 'possible' matching delegation entries"""
+        count = 0
+        table_names =["ipv4", "ipv6", "asn"]
+        for table in table_names:
+            self.cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
+            count += int (self.cursor.fetchone()[0] )
+        return count
+
+    def use_sql_database(self, request, cc):
+        """ Use the sqlite database that is created after fetching delegations
+            to output information for a given request """
+        if self.verbose:
+            print "We have %d entries in our delegation cache." % self.get_total_delegations_from_db()
+        text ="""select start,value from """ + request + """ where cc=?"""
+        cc = (cc,)
+        self.cursor.execute(text,cc)
+        result = []
+        for row in self.cursor:
+            if request == "ipv4":
+                result.append(str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1]))))
+            elif request == "ipv6":
+                result.append(str(row[0]) + "/" + str(int(row[1])))
+            else:
+                result.append(str(int(row[0])))
+        result.sort()
+        if self.verbose:
+            result.append("We found %d possible entries in our delegation cache." % self.get_possible_match_entries(cc) )
+            self.cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
+            result.append("We found %d matching entries in our delegation cache." % int (self.cursor.fetchone()[0] ) )
+        return result
+
+    def get_md5_from_delegation_md5_file(self, delegation_file):
+        """ Returns the md5sum from the delegation md5 file
+            if it doesn't exist it returns an empty string"""
+        checksum = ""
+        try:
+            f = open(self.cache_dir + delegation_file + ".md5", "r")
+            checksum = f.read()
+            f.close()
+            if delegation_file == "delegated-afrinic-latest":
+                pos =  checksum.find(" ")
+                checksum = str (checksum[:pos])
+            else:
+                pos = checksum.find("=") +2
+                checksum = str (checksum[pos:-1])
+        except Exception, e:
+            print repr(e)
+        return checksum
+
+    def verify_delegation_file(self, delegation_file):
+        """ compares the delegation file md5sum to that of the provided md5sum
+           returns True if they match otherwise returns False """
+        checksum = ""
+        checksum_of_file = ""
+        try:
+            data = read_data_from_binary_file(self.cache_dir + delegation_file)
+            checksum_of_file = str (hashlib.md5(data).hexdigest() )
+        except Exception, e:
+            print repr(e)
+        checksum = self.get_md5_from_delegation_md5_file(delegation_file)
+        if checksum != checksum_of_file:
+            return False
+        if checksum == checksum_of_file and checksum != "":
+            return True
+        return False
+
+    def verify_cache(self, delegation_files):
+        """ if in verbose mode prints the result of checking the checksum of the
+            delegation files """
+        for file in delegation_files:
+            if self.verbose:
+                print "verifying " + file
+            if self.verify_delegation_file(file):
+                if self.verbose:
+                    print "the md5 checksum of " + file + " *matches* the provided checksum"
+            else:
+                if self.verbose:
+                    print "the md5 checksum of " + file + " does *not* match the provided checksum"
+
+    def update_delegation_cache(self, delegation_urls):
+        """ Fetch multiple delegation urls and cache the contents. """
+        print "Updating delegation cache..."
+
+        for url in delegation_urls.split():
+            self.cache_delegation(url + ".md5")
+            if self.verify_delegation_file(url.rpartition('/')[-1]):
+                pass
+            else:
+                self.cache_delegation(url)
+
+    def update_lir_delegation_cache(self, delegation_urls):
+        """ Fetch multiple LIR delegation urls and cache the contents. """
+        print "Updating LIR delegation cache..."
+        for url in delegation_urls.split():
+            self.cache_delegation(url)
+        self.unpack_a_delegation_cache(delegation_urls, "LIR")
+
+    def unpack_a_delegation_cache(self, delegation_urls, del_type=""):
+        """ Unpack the fetched LIR delegation files into the blockfinder cache. """
+        # This probably should unlink the gzip'ed file if we care about space...
+        for url in delegation_urls.split():
+            gzip_filename = url.rpartition('/')[-1]
+            gunziped_filename = gzip_filename.rpartition('.')[0]
+            if self.verbose:
+                print "Unpacking " + del_type + "file " + gzip_filename + " into our cache as " + gunziped_filename
+            extract_data_from_gzip_file(self.cache_dir + gzip_filename, self.cache_dir + gunziped_filename)
+
+    def update_geoip_cache(self, geoip_urls):
+        """ Fetch country level resolution GeoIP files from a given url and cache
+        the contents. Unpack it if it's compressed. """
+        print "Updating GeoIP cache..."
+        for url in geoip_urls.split():
+            self.cache_delegation(url)
+        self.unpack_a_delegation_cache(geoip_urls, "GeoIP")
+
+    def load_delegation(self, delegation_file):
+        """ Load, parse and store the delegation file contents as a list. """
+        keys = "registry cc type start value date status"
+        try:
+            f = open(delegation_file, "r")
+            delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
+                            for line in f.readlines() if not line.startswith("#")]
+            f.close()
+            return delegations
+        except OSError, e:
+            print repr(e)
+
+    def load_all_delegations(self, delegation_urls):
+        """ Load all delegations into memory. """
+        delegations = []
+        for url in delegation_urls.split():
+            filename = url.rpartition('/')[-1]
+            if self.verbose:
+                print "Attempting to load delegation file into memory: " + filename
+            delegations.append(self.load_delegation(self.cache_dir + filename))
+        return delegations
+
+    def download_country_code_file(self):
+        """ Download and save the latest opencountrycode XML file """
+        # Google frontend will not return content-length for some reason...
+        url = "http://opencountrycodes.appspot.com/xml"
+        xml = urllib2.urlopen(url).read()
+        write_to_a_text_file(self.cache_dir + "countrycodes.xml", xml)
+
+    def build_country_code_dictionary(self):
+        """ Return a dictionary mapping country name to the country code"""
+        map_co = {}
+        xml_file = str(self.cache_dir) + "countrycodes.xml"
+        clist = minidom.parse(xml_file)
+        for country in clist.getElementsByTagName("country"):
+            code = country.attributes["code"]
+            name = country.attributes["name"]
+            map_co[name.value] = code.value
+        return map_co
+
+    def get_name_from_country_code(self, cc_code):
+        map_co = self.build_country_code_dictionary()
+        country_name = [(key, value) for (key, value) in map_co.items() if value == cc_code]
+        if len(country_name) > 0:
+            return country_name[0][0]
+
+    def get_country_code_from_name(self, country_name):
+        """ Return the country code for a given country name. """
+        map_co = self.build_country_code_dictionary()
+        cc_code = [map_co[key] for key in map_co.keys() if key.upper().startswith(country_name.upper())]
+        if len(cc_code) > 0:
+            return cc_code[0]
+
+    def geoip_lookup(self, ip_addr):
+        # This would work with the CVS version of the GeoIP code
+        # However, MaxMind hasn't done a release in a long time.
+        # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
+        #        gi = GeoIP.open(self.cache_dir + "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
+        #        cc = gi.country_code_by_addr_v6(ip_addr)
+        #        cc_name = gi.country_name_by_addr_v6(ip_addr)
+        gi = GeoIP.open(self.cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+        cc = gi.country_code_by_addr(ip_addr)
+        cc_name = gi.country_name_by_addr(ip_addr)
+        return cc, cc_name
+
+
+    def rir_or_lir_lookup(self, ip_addr, lookup_type, ip_version='4'):
+        ipv4arr = ip_addr.split('.')
+        result = []
+        if lookup_type == 'rir':
+            self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+        else:
+            self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=' + ip_version , (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+        row = self.cursor.fetchone()
+
+        if row is None:
+            if lookup_type == "rir":
+                self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ? ', (ipv4arr[0] + ".%",))
+            else:
+                self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=' + ip_version, (ipv4arr[0] + ".%",))
+            row = self.cursor.fetchone()
+
+        while(row is not None):
+            if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
+                result.append(row[0])
+                result.append(self.get_name_from_country_code(row[0]))
+                self.cursor.close()
+                return result
+            row = self.cursor.fetchone()
+
+    def rir_lookup(self, ip_addr):
+        return self.rir_or_lir_lookup(ip_addr, "rir")
+
+    def lir_lookup(self, ip_addr):
+        return self.rir_or_lir_lookup(ip_addr, "lir")
+
+    def lookup_ip_address(self, ip_addr):
+        """ Return the country code and name for a given ip address. Attempts to
+            use GeoIP if available."""
+
+        ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
+
+        if not ipv4_address_valid(ip_addr):
+            raise BlockFinderError('Invalid ip address!')
+        rir_cc = ""
+        print "Reverse lookup for: " + ip_addr
+        if GeoIP:
+            geoip_cc, geoip_cc_name = self.geoip_lookup(ip_addr)
+            print "GeoIP country code: " + str(geoip_cc)
+            print "GeoIP country name: " + str(geoip_cc_name)
+
+        rir = self.rir_lookup(ip_addr)
+
+        if rir:
+            rir_cc = rir[0]
+            print 'RIR country code:', rir[0]
+            print 'RIR country:', rir[1]
+        else:
+            print 'Not found in RIR db'
+
+        lir = self.lir_lookup(ip_addr)
+        if lir:
+            print 'LIR country code:', lir[0]
+            print 'LIR country :', lir[1]
+
+        if GeoIP:
+            if geoip_cc != rir_cc:
+                print "It appears that the RIR data conflicts with the GeoIP data"
+                print "The GeoIP data is likely closer to being correct due to " \
+                      "sub-delegation issues with LIR databases"
+
+    def create_or_replace_lir_table_in_db(self):
+        self.cursor.execute("""drop table if exists lir_record """)
+        self.cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+        self.conn.commit()
+
+    def extract_info_from_lir_file_and_insert_into_sqlite(self, filename):
+        block = []
+        country = ""
+        entry = False
+        insert_text = """insert into lir_record (cc, start, value, type) VALUES (?,?,?,?)"""
+        version = ""
+        for line in open(self.cache_dir + filename, "r"):
+            line = line.replace("\n", "")
+            if line == "":
+                entry = False
+                country, block, version = "", [], ""
+            elif not entry and "inetnum:" in line:
+                try:
+                    line = line.replace("inetnum:", "").strip()
+                    start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
+                    block = [start_ip, num_ips]
+                    entry = True
+                    version = "4"
+                except Exception, e:
+                    print e
+            elif not entry and "inet6num:" in line:
+                try:
+                    block = line.replace("inet6num:", "").strip().split("/")
+                    entry = True
+                    version = "6"
+                except Exception, e:
+                    print e
+            elif entry and "country:" in line:
+                country = line.replace("country:", "").strip()
+                data = (country, block[0], block[1], version )
+                self.cursor.execute(insert_text, data)
+            self.conn.commit()
+
+    def create_db_and_insert_delegation_into_db(self, delegation_urls):
+        self.create_sql_database()
+        delegations = self.load_all_delegations(delegation_urls)
+        self.insert_into_sql_database(delegations)
+
+def return_first_ip_and_number_in_inetnum(line):
+    start_ip = line.split("-")[0].strip()
+    end_ip = line.split("-")[1].strip()
+    num_ips = 1 + (ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip) )
+    return start_ip, num_ips
 
 def ip_address_to_dec(ip_addr):
     ipar = ip_addr.split('.')
@@ -371,141 +505,6 @@ def ipv4_address_valid(ip_addr):
         return True
     else:
         return False
-
-def geoip_lookup(cache_dir, ip_addr):
-    # This would work with the CVS version of the GeoIP code
-    # However, MaxMind hasn't done a release in a long time.
-    # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/test_v6.py?revision=1.1&view=markup
-    #        gi = GeoIP.open(cache_dir + "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
-    #        cc = gi.country_code_by_addr_v6(ip_addr)
-    #        cc_name = gi.country_name_by_addr_v6(ip_addr)
-    gi = GeoIP.open(cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
-    cc = gi.country_code_by_addr(ip_addr)
-    cc_name = gi.country_name_by_addr(ip_addr)
-    return cc, cc_name
-
-
-def rir_or_lir_lookup(ip_addr,lookup_type, cache_dir):
-    ipv4arr = ip_addr.split('.')
-    result = []
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor = conn.cursor()
-    if lookup_type == 'rir':
-        cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
-    else:
-        cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
-    row = cursor.fetchone()
-
-    if row is None:
-        if lookup_type == "rir":
-            cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ? ', (ipv4arr[0] + ".%",))
-        else:
-            cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
-        row = cursor.fetchone()
-
-    while(row is not None):
-        if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
-            result.append(row[0])
-            result.append(get_name_from_country_code(cache_dir, row[0]))
-            cursor.close()
-            return result
-        row = cursor.fetchone()
-    cursor.close()
-
-def rir_lookup(ip_addr, cache_dir):
-    return rir_or_lir_lookup(ip_addr, "rir", cache_dir)
-
-def lir_lookup(ip_addr, cache_dir):
-    return rir_or_lir_lookup(ip_addr, "lir", cache_dir)
-
-def lookup_ip_address(ip_addr, cache_dir):
-    """ Return the country code and name for a given ip address. Attempts to
-        use GeoIP if available."""
-
-    ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
-    if not ipv4_address_valid(ip_addr):
-        raise BlockFinderError('Invalid ip address!')
-    rir_cc = ""
-    print "Reverse lookup for: " + ip_addr
-    if GeoIP:
-        geoip_cc, geoip_cc_name = geoip_lookup(cache_dir, ip_addr)
-        print "GeoIP country code: " + str(geoip_cc)
-        print "GeoIP country name: " + str(geoip_cc_name)
-
-    rir = rir_lookup(ip_addr, cache_dir)
-
-    if rir:
-        rir_cc = rir[0]
-        print 'RIR country code:', rir[0]
-        print 'RIR country:', rir[1]
-    else:
-        print 'Not found in RIR db'
-
-    lir = lir_lookup(ip_addr, cache_dir)
-    if lir:
-        print 'LIR country code:', lir[0]
-        print 'LIR country :', lir[1]
-
-    if GeoIP:
-        if geoip_cc != rir_cc:
-            print "It appears that the RIR data conflicts with the GeoIP data"
-            print "The GeoIP data is likely closer to being correct due to " \
-                  "sub-delegation issues with LIR databases"
-
-def return_first_ip_and_number_in_inetnum(line):
-    start_ip = line.split("-")[0].strip()
-    end_ip = line.split("-")[1].strip()
-    num_ips = 1 + (ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip) )
-    return start_ip, num_ips
-
-def create_or_replace_lir_table_in_db(cache_dir):
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor = conn.cursor()
-    cursor.execute("""drop table if exists lir_record """)
-    cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
-    conn.commit()
-    cursor.close()
-
-def extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, filename):
-    block = []
-    country = ""
-    entry = False
-    conn = sqlite3.connect(cache_dir + "sqlitedb")
-    cursor =  conn.cursor()
-    insert_text = """insert into lir_record (cc, start, value, type) VALUES (?,?,?,?)"""
-    version = ""
-    for line in open(cache_dir + filename, "r"):
-        line = line.replace("\n", "")
-        if line == "":
-            entry = False
-            country, block, version = "", [], ""
-        elif not entry and "inetnum:" in line:
-            try:
-                line = line.replace("inetnum:", "").strip()
-                start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
-                block = [start_ip, num_ips]
-                entry = True
-                version = "4"
-            except Exception, e:
-                print e
-        elif not entry and "inet6num:" in line:
-            try:
-                block = line.replace("inet6num:", "").strip().split("/")
-                entry = True
-                version = "6"
-            except Exception, e:
-                print e
-        elif entry and "country:" in line:
-            country = line.replace("country:", "").strip()
-            data = (country, block[0], block[1], version )
-            cursor.execute(insert_text, data)
-    conn.commit()
-    cursor.close()
-
-def create_db_and_insert_delegation_into_db(cache_dir, delegation_urls):
-        create_sql_database(cache_dir)
-        delegations = load_all_delegations(cache_dir, delegation_urls)
-        insert_into_sql_database(delegations, cache_dir)
 
 def main():
     """ Where the magic starts. """
@@ -553,10 +552,11 @@ def main():
 
     (options, args) = parser.parse_args()
 
-    global verbose
     verbose = options.verbose
     useragent = options.useragent
     cache_dir = options.cache_dir
+
+    block_f = Blockfinder(cache_dir, useragent, verbose)
 
     requests = []
     delegation_urls = """
@@ -576,19 +576,21 @@ def main():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
 
-    create_blockfinder_cache_dir(cache_dir)
+    block_f.create_blockfinder_cache_dir()
+    block_f.connect_to_database()
     if not os.path.exists(cache_dir + "countrycodes.xml"):
         try:
-            download_country_code_file(cache_dir, useragent)
+            block_f.download_country_code_file()
         except Exception, e:
             print repr(e)
 
 
     if options.hack_the_internet:
-            print "all your bases are belong to us!"
+        print "all your bases are belong to us!"
+        sys.exit(0)
 
     if options.reverse_host:
-        lookup_ip_address(options.reverse_host, cache_dir)
+        block_f.lookup_ip_address(options.reverse_host)
         sys.exit(0)
 
     if options.ipv4:
@@ -601,28 +603,28 @@ def main():
     if options.cc:
         country = options.cc.upper()
     if options.country_name:
-        country = get_country_code_from_name(cache_dir, options.country_name)
+        country = block_f.get_country_code_from_name(options.country_name)
 
     if options.reload_del:
-        create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
+        block_f.create_db_and_insert_delegation_into_db(delegation_urls)
         sys.exit(0)
 
     # Update and quit.
     if options.init_del:
         if GeoIP:
-            update_geoip_cache(cache_dir, geoip_country_urls, useragent)
-        update_delegation_cache(cache_dir, delegation_urls, useragent)
+            block_f.update_geoip_cache(geoip_country_urls)
+        block_f.update_delegation_cache(delegation_urls)
         if verbose:
-            verify_cache(cache_dir, delegation_files)
-        create_db_and_insert_delegation_into_db(cache_dir, delegation_urls)
+            block_f.verify_cache(delegation_files)
+        block_f.create_db_and_insert_delegation_into_db(delegation_urls)
         if not options.init_lir:
             sys.exit(0)
     if options.init_lir:
-        update_lir_delegation_cache(cache_dir,lir_urls,useragent)
+        block_f.update_lir_delegation_cache(lir_urls)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
-        create_or_replace_lir_table_in_db(cache_dir)
-        for file in "ripe.db.inetnum ripe.db.inet6num".split():
-            extract_info_from_lir_file_and_insert_into_sqlite(cache_dir, file)
+        block_f.create_or_replace_lir_table_in_db()
+        for fname in "ripe.db.inetnum ripe.db.inet6num".split():
+            block_f.extract_info_from_lir_file_and_insert_into_sqlite(fname)
         sys.exit(0)
 
     if not requests:
@@ -634,14 +636,14 @@ def main():
         print "It appears your search did not match a country."
         sys.exit(1)
     # Check our cache age and warn if it's aged
-    if cache_is_dated(cache_dir, delegation_files) and verbose:
+    if block_f.cache_is_dated(delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     if verbose:
         print "Using country code: %s" % country
 
     for request in requests:
         try:
-            print " \n".join(use_sql_database(request, country, cache_dir))
+            print " \n".join(block_f.use_sql_database(request, country))
         except Exception, e:
             print repr(e)
 
