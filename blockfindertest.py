@@ -28,7 +28,7 @@ class BlockFinderTestExtras:
         self.block_f.insert_into_sql_database(delegations)
 
     def load_lir_test_data(self):
-        self.block_f.update_lir_delegation_cache("http://d1b.org/other/pub/tests/blockfinder/tiny_lir_data_for_test.gz")
+        self.block_f.update_lir_delegation_cache("https://github.com/downloads/d1b/blockfinder/tiny_lir_data_for_test.gz")
         self.block_f.create_or_replace_lir_table_in_db()
         self.block_f.extract_info_from_lir_file_and_insert_into_sqlite("tiny_lir_data_for_test")
 
