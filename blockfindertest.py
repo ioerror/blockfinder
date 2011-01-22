@@ -90,19 +90,20 @@ class CheckBlockFinder(unittest.TestCase):
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.extra_block_test_f.copy_country_code_xml()
-        self.assertEqual(self.block_f.rir_or_lir_lookup("80.16.151.184", "LIR"), ["IT", "Italy"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup("80.16.151.180", "LIR"), ["IT", "Italy"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup("213.95.6.32", "LIR"), ["DE", "Germany"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
         self.block_f.conn.close()
 
     def test_lir_fetching_and_use_ipv6(self):
-        """ ipv6 - presently these will fail """
+        """ ipv6 """
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.extra_block_test_f.copy_country_code_xml()
-        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:0658:021A::", "LIR"), ["DE", "Germany"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:67c:320::", "LIR", "6"), ["DE", "Germany"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup("2001:670:0085::", "LIR", "6"), ["FI", "Finland"])
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
+        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
+
         self.block_f.conn.close()
 
 

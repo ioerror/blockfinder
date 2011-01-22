@@ -13,6 +13,7 @@ import hashlib
 import gzip
 from xml.dom import minidom
 import socket
+import IPy
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 ___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
@@ -370,20 +371,20 @@ class Blockfinder(object):
         return cc, cc_name
 
 
-    def rir_or_lir_lookup(self, ip_addr, lookup_type, ip_version='4'):
+    def rir_or_lir_lookup_ipv4(self, ip_addr, lookup_type):
         ipv4arr = ip_addr.split('.')
         result = []
         if lookup_type == 'rir':
             self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         else:
-            self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=' + ip_version , (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+            self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         row = self.cursor.fetchone()
 
         if row is None:
             if lookup_type == "rir":
                 self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ? ', (ipv4arr[0] + ".%",))
             else:
-                self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=' + ip_version, (ipv4arr[0] + ".%",))
+                self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
 
         while(row is not None):
@@ -395,16 +396,50 @@ class Blockfinder(object):
             row = self.cursor.fetchone()
 
     def rir_lookup(self, ip_addr):
-        return self.rir_or_lir_lookup(ip_addr, "rir")
+        return self.rir_or_lir_lookup_ipv4(ip_addr, "rir")
 
     def lir_lookup(self, ip_addr):
-        return self.rir_or_lir_lookup(ip_addr, "lir")
+        return self.rir_or_lir_lookup_ipv4(ip_addr, "lir")
+
+
+    def rir_or_lir_lookup_ipv6(self, ip_addr, ip_query, type_q):
+        if type_q == "RIR":
+            self.cursor.execute("select cc, start, value from ipv6 where start like ?", (ip_query,) )
+        else:
+            self.cursor.execute("select cc, start, value from lir_record where type=6 and start like ?", (ip_query,) )
+        for row in self.cursor:
+            try:
+                if ip_addr in IPy.IP(row[1] + "/" + str(row[2])):
+                    return row[0]
+            except ValueError, e:
+                if self.verbose:
+                    print e
+                pass
+
+    def lookup_ipv6_address(self, ip_addr):
+        print "Reverse lookup for: " + ip_addr
+        split_addr = ip_addr.split(":")
+        for i in ["RIR", "LIR"]:
+            ip_query = ip_addr.split(":")[0] + ":" + ip_addr.split(":")[1] + "%"
+            result = self.rir_or_lir_lookup_ipv6(ip_addr, ip_query, i)
+            if result:
+                   print i, "Country Name:", self.get_name_from_country_code(result)
+            else:
+                ip_query = ip_addr.split(":")[0] + ":%"
+                result = self.rir_or_lir_lookup_ipv6(ip_addr, ip_query, i)
+                if result:
+                    print i, "Country Name:", self.get_name_from_country_code(result)
+
+
 
     def lookup_ip_address(self, ip_addr):
         """ Return the country code and name for a given ip address. Attempts to
             use GeoIP if available."""
 
         ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
+        if IPy.IP(ip_addr).version() == 6:
+            self.lookup_ipv6_address(ip_addr)
+            return
 
         if not ipv4_address_valid(ip_addr):
             raise BlockFinderError('Invalid ip address!')
