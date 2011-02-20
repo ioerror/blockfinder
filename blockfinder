@@ -586,7 +586,7 @@ def main():
             help = "Use existing delegation files to update the database")
 
     (options, args) = parser.parse_args()
-
+    country = None
     verbose = options.verbose
     useragent = options.useragent
     cache_dir = options.cache_dir
