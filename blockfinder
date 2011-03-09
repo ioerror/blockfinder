@@ -88,10 +88,14 @@ def calculate_ipv4_subnet(host_count):
 
 def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
     gzip_file = gzip.open(gzip_file_loc, 'rb')
-    gunzipped_data = gzip_file.read()
-    gzip_file.close()
     gunzipped_file = open(extract_file_loc, 'w')
-    gunzipped_file.writelines(gunzipped_data)
+    while True:
+        gunzipped_data = gzip_file.read(1024)
+        if gunzipped_data == "":
+            break
+        gunzipped_file.writelines(gunzipped_data)
+
+    gzip_file.close()
     gunzipped_file.close()
 
 def read_data_from_binary_file(fname):
