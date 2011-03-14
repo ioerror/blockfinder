@@ -13,7 +13,6 @@ import hashlib
 import gzip
 from xml.dom import minidom
 import socket
-import IPy
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
 ___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
@@ -30,6 +29,11 @@ try:
     from future import antigravity
 except ImportError:
     antigravity = None
+
+try:
+    import IPy
+except ImportError:
+    IPy = None
 
 class BlockFinderError(Exception):
     pass
@@ -441,7 +445,7 @@ class Blockfinder(object):
             use GeoIP if available."""
 
         ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
-        if IPy.IP(ip_addr).version() == 6:
+        if IPy and IPy.IP(ip_addr).version() == 6:
             self.lookup_ipv6_address(ip_addr)
             return
 
