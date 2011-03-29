@@ -399,7 +399,6 @@ class Blockfinder(object):
             if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
                 result.append(row[0])
                 result.append(self.get_name_from_country_code(row[0]))
-                self.cursor.close()
                 return result
             row = self.cursor.fetchone()
 
@@ -689,6 +688,10 @@ def main():
             print " \n".join(block_f.use_sql_database(request, country))
         except Exception, e:
             print repr(e)
+    try:
+        block_f.cursor.close()
+    except Exception, e:
+        print repr(e)
 
 if __name__ == "__main__":
     main()
