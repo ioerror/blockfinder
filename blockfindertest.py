@@ -3,6 +3,7 @@ import blockfinder
 import unittest
 import os
 import shutil
+from tempfile import mkdtemp
 import test_data
 
 try:
@@ -12,13 +13,12 @@ except ImportError:
 
 
 class BlockFinderTestExtras:
-    def __init__(self, test_dir="/tmp/blockfinder_test/"):
-        self.test_dir = test_dir
-        assert self.test_dir == "/tmp/blockfinder_test/", "if you want to change the test directory you will need to change this line!"
+    def __init__(self):
+        self.base_test_dir = mkdtemp()
+        self.test_dir = self.base_test_dir + "/test/"
         self.block_f = blockfinder.Blockfinder(self.test_dir, "Mozilla")
 
     def create_new_test_cache_dir(self):
-        shutil.rmtree(self.test_dir, True)
         self.block_f.create_blockfinder_cache_dir()
         self.block_f.connect_to_database()
         self.block_f.create_sql_database()
@@ -34,6 +34,9 @@ class BlockFinderTestExtras:
 
     def copy_country_code_xml(self):
         shutil.copy(str(os.path.expanduser('~')) + "/.blockfinder/countrycodes.xml", self.block_f.cache_dir + "countrycodes.xml")
+
+    def clean_up(self):
+        shutil.rmtree(self.base_test_dir, True)
 
 class CheckReverseLookup(unittest.TestCase):
     ipValues = ( (3229318011, '192.123.123.123'),
@@ -67,6 +70,9 @@ class CheckBlockFinder(unittest.TestCase):
 
         self.extra_block_test_f.create_new_test_cache_dir()
         self.extra_block_test_f.load_del_test_data()
+
+    def tearDown(self):
+        self.extra_block_test_f.clean_up()
 
     # You can add known blocks to the tuple as a list
     # they will be looked up and checked
