@@ -513,7 +513,7 @@ class Blockfinder(object):
                 country = line.replace("country:", "").strip()
                 data = (country, block[0], block[1], version )
                 self.cursor.execute(insert_text, data)
-            self.conn.commit()
+        self.conn.commit()
 
     def create_db_and_insert_delegation_into_db(self, delegation_urls):
         self.create_sql_database()
