@@ -396,7 +396,7 @@ class Blockfinder(object):
             row = self.cursor.fetchone()
 
         while(row is not None):
-            if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) <= (ip_address_to_dec(row[1]) + row[2])):
+            if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) < (ip_address_to_dec(row[1]) + row[2])):
                 result.append(row[0])
                 result.append(self.get_name_from_country_code(row[0]))
                 return result
