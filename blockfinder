@@ -34,6 +34,11 @@ try:
     import IPy
 except ImportError:
     IPy = None
+try:
+    import netaddr as Netaddr
+except ImportError:
+    Netaddr = None
+
 
 class BlockFinderError(Exception):
     pass
@@ -217,7 +222,12 @@ class Blockfinder(object):
         result = []
         for row in self.cursor:
             if request == "ipv4":
-                result.append(str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1]))))
+                if Netaddr:
+                    start_ip = Netaddr.IPAddress(str(row[0]))
+                    result += [str(x) for x in Netaddr.iprange_to_cidrs(start_ip, \
+                        start_ip + int(row[1]) -1 ) ]
+                else:
+                    result.append(str(row[0]) + "/" + str(calculate_ipv4_subnet(int(row[1]))))
             elif request == "ipv6":
                 result.append(str(row[0]) + "/" + str(int(row[1])))
             else:
