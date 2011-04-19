@@ -21,6 +21,8 @@ Add support for BGP related information
     show all ASNs announced by a country (as allocated)
     show all blocks announced by ASN
     show all blocks announced by a collection of ASNs (country)
+    we need to parse MRT binary archives from http://archive.routeviews.org/
+      maybe with http://code.google.com/p/pybgpdump/ ?
 
 Add latency GeoIP confirmation test
     As an interface with routeviews.org
