@@ -16,6 +16,21 @@ Add/Fix support for IPv6
 
 Add lock file to ensure '-i' only runs once
 
+Add support for BGP related information
+    Interface with routeviews.org for data
+    show all ASNs announced by a country (as allocated)
+    show all blocks announced by ASN
+    show all blocks announced by a collection of ASNs (country)
+
+Add latency GeoIP confirmation test
+    As an interface with routeviews.org
+    pick n out of x netblocks total, randomly select an ip in the block,
+    traceroute, repeat this process until n is reasonably near x, average
+    the results to find a likely lowest latency into the country.
+    Given the target ip and the above calculated latency map, compare the
+    latency - shorest latency is likely the most honest - liars can only
+    delay packets or drop them.
+
 Unit Tests!
 
 Lower Priority:
