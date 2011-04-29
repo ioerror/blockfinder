@@ -418,6 +418,14 @@ class Blockfinder(object):
     def lir_lookup(self, ip_addr):
         return self.rir_or_lir_lookup_ipv4(ip_addr, "lir")
 
+    def asn_lookup(self, asn):
+      self.cursor.execute('select cc from asn WHERE start LIKE ?', (asn,))
+      row = self.cursor.fetchone()
+      if row is not None:
+        print "AS country code: %s" % row[0]
+        print "AS country name: %s" % self.get_name_from_country_code(row[0])
+      else:
+        print "AS%s not found!" % asn
 
     def rir_or_lir_lookup_ipv6(self, ip_addr, ip_query, type_q):
         if type_q == "RIR":
@@ -640,7 +648,10 @@ def main():
     if options.hack_the_internet:
         print "all your bases are belong to us!"
         sys.exit(0)
-
+    if options.asn and options.reverse_host:
+      block_f.asn_lookup(options.reverse_host)
+      sys.exit(0)
+    
     if options.reverse_host:
         block_f.lookup_ip_address(options.reverse_host)
         sys.exit(0)
