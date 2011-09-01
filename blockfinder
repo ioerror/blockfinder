@@ -537,6 +537,7 @@ class Blockfinder(object):
         self.create_sql_database()
         delegations = self.load_all_delegations(delegation_urls)
         self.insert_into_sql_database(delegations)
+        self.conn.commit()
 
 def return_first_ip_and_number_in_inetnum(line):
     start_ip = line.split("-")[0].strip()
