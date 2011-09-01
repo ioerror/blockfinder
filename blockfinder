@@ -610,6 +610,9 @@ def main():
     parser.add_option("-d", "--reload-delegation", action="store_true", dest="reload_del", \
             help = "Use existing delegation files to update the database")
 
+    parser.add_option("-z", "--reload-lir", action="store_true", dest="reload_lir", \
+            help = "Use existing lir files to update the database")
+
     (options, args) = parser.parse_args()
     country = None
     verbose = options.verbose
@@ -682,8 +685,9 @@ def main():
         block_f.create_db_and_insert_delegation_into_db(delegation_urls)
         if not options.init_lir:
             sys.exit(0)
-    if options.init_lir:
-        block_f.update_lir_delegation_cache(lir_urls)
+    if options.init_lir or options.reload_lir:
+        if options.init_lir:
+            block_f.update_lir_delegation_cache(lir_urls)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
         block_f.create_or_replace_lir_table_in_db()
         for fname in "ripe.db.inetnum ripe.db.inet6num".split():
