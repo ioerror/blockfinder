@@ -47,7 +47,10 @@ class CheckReverseLookup(unittest.TestCase):
 
     rirValues = ( ('217.204.232.15', 'GB'),
                   ('188.72.225.100', 'DE'),
-                  ('8.8.8.1', 'US'))
+                  ('8.8.8.1', 'US'),
+                  ('193.9.26.0', 'HU'),
+                  ('193.9.25.255', 'PL'),
+                  )
     def setUp(self):
         self.block_f = blockfinder.Blockfinder(str(os.path.expanduser('~')) + "/.blockfinder/", "Mozilla")
         self.block_f.connect_to_database()
@@ -61,7 +64,6 @@ class CheckReverseLookup(unittest.TestCase):
         for dec, ip in self.ipValues:
             result = blockfinder.ip_address_to_dec(ip)
             self.assertEqual(result, dec)
-
 
 class CheckBlockFinder(unittest.TestCase):
     def setUp(self):
@@ -111,7 +113,6 @@ class CheckBlockFinder(unittest.TestCase):
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
 
         self.block_f.conn.close()
-
 
 class CheckBasicFunctionOperation(unittest.TestCase):
     def test_calc_ipv4_subnet_boundary(self):
