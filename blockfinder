@@ -509,14 +509,16 @@ class Blockfinder(object):
                     entry = True
                     version = "4"
                 except Exception, e:
-                    print e
+                    if self.verbose:
+                        print repr(e), line
             elif not entry and "inet6num:" in line:
                 try:
                     block = line.replace("inet6num:", "").strip().split("/")
                     entry = True
                     version = "6"
                 except Exception, e:
-                    print e
+                    if self.verbose:
+                        print repr(e), line
             elif entry and "country:" in line:
                 country = line.replace("country:", "").strip()
                 data = (country, block[0], block[1], version )
