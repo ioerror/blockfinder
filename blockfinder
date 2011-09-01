@@ -651,7 +651,7 @@ def main():
     if options.asn and options.reverse_host:
       block_f.asn_lookup(options.reverse_host)
       sys.exit(0)
-    
+
     if options.reverse_host:
         block_f.lookup_ip_address(options.reverse_host)
         sys.exit(0)
