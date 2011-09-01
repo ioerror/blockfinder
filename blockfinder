@@ -166,59 +166,49 @@ class Blockfinder(object):
 
     def create_sql_database(self):
         """ Creates a new sqlite database.
-             If there is a previous sqlite database it will be deleted. """
-        for table in ["ipv4", "ipv6", "asn"]:
-            self.cursor.execute("""drop table if exists """ + table)
-        self.cursor.execute("""create table asn(registry text, cc text, start text, value INTEGER, date text, status text)""")
-        self.cursor.execute("""create table ipv4(registry text, cc text, start text, value INTEGER, date text, status text)""")
-        self.cursor.execute("""create table ipv6(registry text, cc text, start text, value INTEGER, date text, status text)""")
-        self.cursor.execute("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+            Existing delegation entries are dropped prior to inserting
+            'newer' delegations.
+        """
+        sql_script_comp = []
+        sql_script_comp.append("""drop table if exists delegations""" )
+        sql_script_comp.append("""create table delegations(registry text, cc text, start text, value INTEGER, date text, status text, type text)""")
+        sql_script_comp.append("""create table if not exists lir_record(cc text, start text, value INTEGER, type INTEGER)""")
+        self.cursor.executescript(";\n".join(sql_script_comp) + ";" )
         self.conn.commit()
 
     def insert_into_sql_database(self, delegations):
         """ inserts delegation information into the sqlite database"""
-        table = ""
+        rows = []
         for delegation in delegations:
             for entry in delegation:
                 registry = str(entry['registry'])
                 if not registry.isdigit() and str (entry['cc']) !="*":
-                    if entry['type'] == "ipv6":
-                        table = "ipv6"
-                    if entry['type'] == "ipv4":
-                        table = "ipv4"
-                    if entry['type'] == "asn":
-                        table = "asn"
-                    text = """INSERT INTO """ + table + """ ( registry, cc, start, value, date,status) VALUES (?,?,?,?,?,?)"""
-                    data = [entry['registry'], entry['cc'], entry['start'], entry['value'], entry['date'], entry['status'] ]
-                    self.cursor.execute(text, data)
+                    temp_row = [entry['registry'], entry['cc'], entry['start'], \
+                        entry['value'], entry['date'], entry['status'], entry['type']]
+                    rows.append(temp_row)
+
+        text = """INSERT INTO delegations (registry, cc, start, value, date, status, type) VALUES (?,?,?,?,?,?,?)"""
+        self.cursor.executemany(text, rows)
         self.conn.commit()
 
     def get_total_delegations_from_db(self):
         """ Returns the total count of the number of entries in the ipv4, ipv6 and asn table """
-        count = 0
-        table_names = ["ipv4", "ipv6", "asn"]
-        for table in table_names:
-            self.cursor.execute("""select count (*)  from """ + table)
-            count += int (self.cursor.fetchone()[0] )
-        return count
+        self.cursor.execute("""select count (*) from delegations""")
+        return int (self.cursor.fetchone()[0] )
 
     def get_possible_match_entries(self, cc):
         """ Get the count of 'possible' matching delegation entries"""
-        count = 0
-        table_names =["ipv4", "ipv6", "asn"]
-        for table in table_names:
-            self.cursor.execute("""select count (*)  from """ + table + """ where cc=?""",cc)
-            count += int (self.cursor.fetchone()[0] )
-        return count
+        self.cursor.execute("""select count (*)  from delegations where cc=?""", cc)
+        return int (self.cursor.fetchone()[0] )
 
     def use_sql_database(self, request, cc):
         """ Use the sqlite database that is created after fetching delegations
             to output information for a given request """
         if self.verbose:
             print "We have %d entries in our delegation cache." % self.get_total_delegations_from_db()
-        text ="""select start,value from """ + request + """ where cc=?"""
+        text = "select start, value from delegations where type=? and cc=?"
         cc = (cc,)
-        self.cursor.execute(text,cc)
+        self.cursor.execute(text, (request, cc[0]) )
         result = []
         for row in self.cursor:
             if request == "ipv4":
@@ -235,7 +225,7 @@ class Blockfinder(object):
         result.sort()
         if self.verbose:
             result.append("We found %d possible entries in our delegation cache." % self.get_possible_match_entries(cc) )
-            self.cursor.execute("""select count(*) from """ + request + """ where cc=?""", cc )
+            self.cursor.execute("""select count(*) from delegations where cc=? and type=?""", (cc[0], request) )
             result.append("We found %d matching entries in our delegation cache." % int (self.cursor.fetchone()[0] ) )
         return result
 
@@ -393,14 +383,14 @@ class Blockfinder(object):
         ipv4arr = ip_addr.split('.')
         result = []
         if lookup_type == 'rir':
-            self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+            self.cursor.execute('select cc, start, value from delegations WHERE type="ipv4" and start LIKE ?', ( ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         else:
             self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         row = self.cursor.fetchone()
 
         if row is None:
             if lookup_type == "rir":
-                self.cursor.execute('select cc, start, value from ipv4 WHERE start LIKE ? ', (ipv4arr[0] + ".%",))
+                self.cursor.execute('select cc, start, value from delegations WHERE type="ipv4" and start LIKE ? ', (ipv4arr[0] + ".%",))
             else:
                 self.cursor.execute('select * from lir_record WHERE start LIKE ? and type=4', (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
@@ -429,7 +419,7 @@ class Blockfinder(object):
 
     def rir_or_lir_lookup_ipv6(self, ip_addr, ip_query, type_q):
         if type_q == "RIR":
-            self.cursor.execute("select cc, start, value from ipv6 where start like ?", (ip_query,) )
+            self.cursor.execute("select cc, start, value from delegations where type='ipv6'and start like ?", (ip_query,) )
         else:
             self.cursor.execute("select cc, start, value from lir_record where type=6 and start like ?", (ip_query,) )
         for row in self.cursor:
