@@ -703,7 +703,11 @@ def main():
 
     for request in requests:
         try:
-            print " \n".join(block_f.use_sql_database(request, country))
+            try:
+                print " \n".join(block_f.use_sql_database(request, country))
+            except sqlite3.Error, e:
+                print repr(e)
+                print "Please try reloading the database. (run ./blockfinder -i)."
         except Exception, e:
             print repr(e)
     try:
