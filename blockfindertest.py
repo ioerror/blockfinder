@@ -97,7 +97,7 @@ class CheckBlockFinder(unittest.TestCase):
     def test_lir_fetching_and_use_ipv4(self):
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
-        self.extra_block_test_f.copy_country_code_txt()
+        self.block_f.download_country_code_file()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
