@@ -32,8 +32,8 @@ class BlockFinderTestExtras:
         self.block_f.create_or_replace_lir_table_in_db()
         self.block_f.extract_info_from_lir_file_and_insert_into_sqlite("tiny_lir_data_for_test")
 
-    def copy_country_code_xml(self):
-        shutil.copy(str(os.path.expanduser('~')) + "/.blockfinder/countrycodes.xml", self.block_f.cache_dir + "countrycodes.xml")
+    def copy_country_code_txt(self):
+        shutil.copy(str(os.path.expanduser('~')) + "/.blockfinder/countrycodes.txt", self.block_f.cache_dir + "countrycodes.txt")
 
     def clean_up(self):
         shutil.rmtree(self.base_test_dir, True)
@@ -97,7 +97,7 @@ class CheckBlockFinder(unittest.TestCase):
     def test_lir_fetching_and_use_ipv4(self):
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
-        self.extra_block_test_f.copy_country_code_xml()
+        self.extra_block_test_f.copy_country_code_txt()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
@@ -107,7 +107,7 @@ class CheckBlockFinder(unittest.TestCase):
         """ ipv6 """
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
-        self.extra_block_test_f.copy_country_code_xml()
+        self.extra_block_test_f.copy_country_code_txt()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
