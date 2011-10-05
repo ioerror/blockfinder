@@ -11,7 +11,6 @@ from math import ceil, log
 import sqlite3
 import hashlib
 import gzip
-from xml.dom import minidom
 import socket
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
@@ -336,21 +335,25 @@ class Blockfinder(object):
         return delegations
 
     def download_country_code_file(self):
-        """ Download and save the latest opencountrycode XML file """
-        # Google frontend will not return content-length for some reason...
-        url = "http://opencountrycodes.appspot.com/xml"
-        xml = urllib2.urlopen(url).read()
-        write_to_a_text_file(self.cache_dir + "countrycodes.xml", xml)
+        """ Download and save the latest opencountrycode TXT(';' - separated) file """
+        url = "http://www.iso.org/iso/list-en1-semic-3.txt"
+        text_content = urllib2.urlopen(url).read()
+        write_to_a_text_file(self.cache_dir + "countrycodes.txt", text_content)
 
     def build_country_code_dictionary(self):
         """ Return a dictionary mapping country name to the country code"""
         map_co = {}
-        xml_file = str(self.cache_dir) + "countrycodes.xml"
-        clist = minidom.parse(xml_file)
-        for country in clist.getElementsByTagName("country"):
-            code = country.attributes["code"]
-            name = country.attributes["name"]
-            map_co[name.value] = code.value
+        txt_file = str(self.cache_dir) + "countrycodes.txt"
+        for line in open(txt_file, 'r'):
+            line = line.replace("\n", "").replace("\r", "")
+            if line.startswith("This list states the country"):
+                continue
+            if line == "" or ";" not in line:
+                continue
+            name, code = line.split(";")
+            """ capitalize the individual parts of the country name """
+            name = ' '.join([part.capitalize() for part in name.split(" ")])
+            map_co[name] = code
         return map_co
 
     def get_name_from_country_code(self, cc_code):
@@ -634,7 +637,7 @@ def main():
 
     block_f.create_blockfinder_cache_dir()
     block_f.connect_to_database()
-    if not os.path.exists(cache_dir + "countrycodes.xml"):
+    if not os.path.exists(cache_dir + "countrycodes.txt"):
         try:
             block_f.download_country_code_file()
         except Exception, e:
