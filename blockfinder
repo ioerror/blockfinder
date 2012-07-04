@@ -236,10 +236,7 @@ class Blockfinder(object):
             f = open(self.cache_dir + delegation_file + ".md5", "r")
             checksum = f.read()
             f.close()
-            if delegation_file == "delegated-afrinic-latest":
-                pos =  checksum.find(" ")
-                checksum = str (checksum[:pos])
-            else:
+            if "=" in checksum:
                 pos = checksum.find("=") +2
                 checksum = str (checksum[pos:-1])
         except Exception, e:
