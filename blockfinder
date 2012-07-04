@@ -14,7 +14,7 @@ import gzip
 import socket
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
-___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
+___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
 __version__ = '3.1415'
