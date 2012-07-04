@@ -14,7 +14,7 @@ import gzip
 import socket
 __program__ = 'blockfinder'
 __url__ = 'http://github.com/ioerror/blockfinder/'
-___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, dave b. <db@d1b.org>'
+___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
 __version__ = '3.1415'
@@ -237,10 +237,7 @@ class Blockfinder(object):
             f = open(self.cache_dir + delegation_file + ".md5", "r")
             checksum = f.read()
             f.close()
-            if delegation_file == "delegated-afrinic-latest":
-                pos =  checksum.find(" ")
-                checksum = str (checksum[:pos])
-            else:
+            if "=" in checksum:
                 pos = checksum.find("=") +2
                 checksum = str (checksum[pos:-1])
         except Exception, e:
