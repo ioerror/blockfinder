@@ -38,24 +38,39 @@ class BlockFinderTestExtras:
     def clean_up(self):
         shutil.rmtree(self.base_test_dir, True)
 
-class CheckReverseLookup(unittest.TestCase):
+class BaseBlockfinderTest(unittest.TestCase):
+    """ This is the base blockfinder test class and provides
+        a setUp and a tearDown which create and destroy a temporary
+        cache directory and database respectively.
+    """
+    def setUp(self):
+        self.extra_block_test_f = BlockFinderTestExtras()
+        self.block_f = blockfinder.Blockfinder(self.extra_block_test_f.test_dir, "Mozilla")
+        self.extra_block_test_f.create_new_test_cache_dir()
+        self.extra_block_test_f.load_del_test_data()
+
+    def tearDown(self):
+        self.extra_block_test_f.clean_up()
+
+class CheckReverseLookup(BaseBlockfinderTest):
     ipValues = ( (3229318011, '192.123.123.123'),
             (3463778365, '206.117.16.61'),
             (4278190202, '255.0.0.122'),
             (3654084623, '217.204.232.15'),
             (134217728, '8.0.0.0'))
 
-    rirValues = ( ('217.204.232.15', 'GB'),
-                  ('188.72.225.100', 'DE'),
-                  ('8.8.8.1', 'US'),
+    rirValues = ( ('175.45.176.100', 'KP'),
                   ('193.9.26.0', 'HU'),
+                  ('193.9.25.1', 'PL'),
                   ('193.9.25.255', 'PL'),
                   )
-    def setUp(self):
-        self.block_f = blockfinder.Blockfinder(str(os.path.expanduser('~')) + "/.blockfinder/", "Mozilla")
-        self.block_f.connect_to_database()
+    def tearDown(self):
+        self.extra_block_test_f.clean_up()
 
     def test_rir_lookup(self):
+        self.block_f.connect_to_database()
+        self.block_f.download_country_code_file()
+
         for ip, cc in self.rirValues:
             result = self.block_f.rir_lookup(ip)
             self.assertEqual(result[0], cc)
@@ -65,17 +80,7 @@ class CheckReverseLookup(unittest.TestCase):
             result = blockfinder.ip_address_to_dec(ip)
             self.assertEqual(result, dec)
 
-class CheckBlockFinder(unittest.TestCase):
-    def setUp(self):
-        self.extra_block_test_f = BlockFinderTestExtras()
-        self.block_f = blockfinder.Blockfinder(self.extra_block_test_f.test_dir, "Mozilla")
-
-        self.extra_block_test_f.create_new_test_cache_dir()
-        self.extra_block_test_f.load_del_test_data()
-
-    def tearDown(self):
-        self.extra_block_test_f.clean_up()
-
+class CheckBlockFinder(BaseBlockfinderTest):
     # You can add known blocks to the tuple as a list
     # they will be looked up and checked
     known_ipv4_Results = ( ('mm', ['203.81.160.0/20', '203.81.64.0/19']),
@@ -94,24 +99,20 @@ class CheckBlockFinder(unittest.TestCase):
         self.assertEqual(result, expected)
         self.block_f.conn.close()
 
-    def test_lir_fetching_and_use_ipv4(self):
+    def test_lir_fetching_and_use(self):
+        """ test LIR fetching and use. """
+        """ ipv4 """
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.block_f.download_country_code_file()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
-        self.block_f.conn.close()
 
-    def test_lir_fetching_and_use_ipv6(self):
         """ ipv6 """
-        self.block_f.connect_to_database()
-        self.extra_block_test_f.load_lir_test_data()
-        self.extra_block_test_f.copy_country_code_txt()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
-
         self.block_f.conn.close()
 
 class CheckBasicFunctionOperation(unittest.TestCase):
