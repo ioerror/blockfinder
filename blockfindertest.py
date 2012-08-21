@@ -41,7 +41,7 @@ class BlockFinderTestExtras:
 class BaseBlockfinderTest(unittest.TestCase):
     """ This is the base blockfinder test class and provides
         a setUp and a tearDown which create and destroy a temporary
-	cache directory and database respectively.
+        cache directory and database respectively.
     """
     def setUp(self):
         self.extra_block_test_f = BlockFinderTestExtras()
