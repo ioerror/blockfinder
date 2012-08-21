@@ -94,24 +94,20 @@ class CheckBlockFinder(unittest.TestCase):
         self.assertEqual(result, expected)
         self.block_f.conn.close()
 
-    def test_lir_fetching_and_use_ipv4(self):
+    def test_lir_fetching_and_use(self):
+        """ test LIR fetching and use. """
+        """ ipv4 """
         self.block_f.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.block_f.download_country_code_file()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
-        self.block_f.conn.close()
 
-    def test_lir_fetching_and_use_ipv6(self):
         """ ipv6 """
-        self.block_f.connect_to_database()
-        self.extra_block_test_f.load_lir_test_data()
-        self.extra_block_test_f.copy_country_code_txt()
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
         self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
-
         self.block_f.conn.close()
 
 class CheckBasicFunctionOperation(unittest.TestCase):
