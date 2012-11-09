@@ -313,7 +313,7 @@ class Blockfinder(object):
         keys = "registry cc type start value date status"
         try:
             f = open(delegation_file, "r")
-            delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
+            delegations = [ dict((k,v) for k,v in zip(keys.split(), line.strip().split("|")))
                             for line in f.readlines() if not line.startswith("#")]
             f.close()
             return delegations
