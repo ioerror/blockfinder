@@ -7,7 +7,6 @@ import os
 import time
 from optparse import OptionParser
 import sys
-from math import ceil, log
 import sqlite3
 import hashlib
 import gzip
@@ -90,10 +89,9 @@ def write_to_a_text_file(file_loc, data):
     f.close()
 
 def calculate_ipv4_subnet(host_count):
-    """ XXX: this will return incorrect values for anything above a /4
-    e.g. calculate_ipv4_subnet(536870912) will return 2 instead of 3
-    """
-    return 32 - int(ceil(log(host_count,2)))
+    if host_count <= 1:
+        return 32
+    return 34 - len(bin(host_count - 1))
 
 def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
     gzip_file = gzip.open(gzip_file_loc, 'rb')
