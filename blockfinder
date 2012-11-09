@@ -7,14 +7,13 @@ import os
 import time
 from optparse import OptionParser
 import sys
-from math import ceil, log
 import sqlite3
 import hashlib
 import gzip
 import socket
 __program__ = 'blockfinder'
-__url__ = 'http://github.com/ioerror/blockfinder/'
-___author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
+__url__ = 'https://github.com/ioerror/blockfinder/'
+__author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
 __version__ = '3.1415'
@@ -57,12 +56,12 @@ def update_progress_bar(percent_done, caption=""):
 def fetch(url, useragent):
     """ Fetch (with progress meter) and return the contents of a url. """
     req = urllib2.Request(url)
-    req.add_header('User-agent', useragent)
+    req.add_header('User-Agent', useragent)
     #req.set_proxy(host, type)
     fetcher = urllib2.urlopen(req)
-    length_header = fetcher.headers.get("content-length")
+    length_header = fetcher.headers.get("Content-Length")
     if length_header == None:
-        """ The server did not provide a content-length header. """
+        """ The server did not provide a Content-Length header. """
         length_header = -1
     length = int(length_header)
     print "Fetching ", str (round(float(length/1024),2)) , " kilobytes"
@@ -90,10 +89,9 @@ def write_to_a_text_file(file_loc, data):
     f.close()
 
 def calculate_ipv4_subnet(host_count):
-    """ XXX: this will return incorrect values for anything above a /4
-    e.g. calculate_ipv4_subnet(536870912) will return 2 instead of 3
-    """
-    return 32 - int(ceil(log(host_count,2)))
+    if host_count <= 1:
+        return 32
+    return 34 - len(bin(host_count - 1))
 
 def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
     gzip_file = gzip.open(gzip_file_loc, 'rb')
@@ -315,7 +313,7 @@ class Blockfinder(object):
         keys = "registry cc type start value date status"
         try:
             f = open(delegation_file, "r")
-            delegations = [ dict((k,v) for k,v in zip(keys.split(), line.split("|")))
+            delegations = [ dict((k,v) for k,v in zip(keys.split(), line.strip().split("|")))
                             for line in f.readlines() if not line.startswith("#")]
             f.close()
             return delegations
@@ -593,7 +591,7 @@ def main():
             help = "Hack the internet")
 
     parser.add_option("-r", "--reverse-lookup", action="store", dest="reverse_host", \
-            help = "Return the county name for the specified IP or hostname")
+            help = "Return the country name for the specified IP or ASN")
 
     parser.add_option("-i", "--initialize-delegation", action="store_true", dest="init_del", \
             help = "Initialize or update delegation information")
