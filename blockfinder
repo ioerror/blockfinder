@@ -408,7 +408,7 @@ class Blockfinder(object):
         return self.rir_or_lir_lookup_ipv4(ip_addr, "lir")
 
     def asn_lookup(self, asn):
-      self.cursor.execute('select cc from asn WHERE start LIKE ?', (asn,))
+      self.cursor.execute('select cc from delegations WHERE type="asn" and start LIKE ?', (asn,))
       row = self.cursor.fetchone()
       if row is not None:
         print "AS country code: %s" % row[0]
