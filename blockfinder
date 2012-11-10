@@ -537,16 +537,8 @@ def return_first_ip_and_number_in_inetnum(line):
     return start_ip, num_ips
 
 def ip_address_to_dec(ip_addr):
-    ipar = ip_addr.split('.')
-    a = ['','','','']
-    for i in range(4):
-        a[i] = hex(int(ipar[i]))[2:]
-        if(int(ipar[i]) <= 15):
-            a[i] = """0""" + a[i]
-
-    total = '0x'+a[0]+a[1]+a[2]+a[3]
-    decimal = int(total,16)
-    return decimal
+    octets = ip_addr.split('.')
+    return long(''.join(["%02X" % long(octet) for octet in octets]), 16)
 
 def ipv4_address_valid(ip_addr):
     ipv4arr = ip_addr.split('.')
