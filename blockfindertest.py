@@ -64,16 +64,28 @@ class CheckReverseLookup(BaseBlockfinderTest):
                   ('193.9.25.1', 'PL'),
                   ('193.9.25.255', 'PL'),
                   )
+    asnValues = ( ('681', 'NZ'),
+                ('173', 'JP')
+                )
+
+
     def tearDown(self):
         self.extra_block_test_f.clean_up()
 
-    def test_rir_lookup(self):
+    def reverse_lookup_cc_matcher(self, method, values):
         self.block_f.connect_to_database()
         self.block_f.download_country_code_file()
-
-        for ip, cc in self.rirValues:
-            result = self.block_f.rir_lookup(ip)
+        for value, cc in values:
+            result = method(value)
             self.assertEqual(result[0], cc)
+
+    def test_rir_lookup(self):
+        method = self.block_f.rir_lookup
+        self.reverse_lookup_cc_matcher(method, self.rirValues)
+
+    def test_asn_lookup(self):
+        method = self.block_f.asn_lookup
+        self.reverse_lookup_cc_matcher(method, self.asnValues)
 
     def test_ip_address_to_dec(self):
         for dec, ip in self.ipValues:
