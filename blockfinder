@@ -407,14 +407,20 @@ class Blockfinder(object):
     def lir_lookup(self, ip_addr):
         return self.rir_or_lir_lookup_ipv4(ip_addr, "lir")
 
+    def reverse_asn(self, asn):
+        reversed_asn = self.asn_lookup(asn)
+        if reversed_asn:
+            print "AS country code: %s" % reversed_asn[0]
+            print "AS country name: %s" % reversed_asn[1]
+        else:
+            print "AS%s not found!" % asn
+
     def asn_lookup(self, asn):
-      self.cursor.execute('select cc from asn WHERE start LIKE ?', (asn,))
-      row = self.cursor.fetchone()
-      if row is not None:
-        print "AS country code: %s" % row[0]
-        print "AS country name: %s" % self.get_name_from_country_code(row[0])
-      else:
-        print "AS%s not found!" % asn
+        self.cursor.execute('select cc from delegations WHERE type="asn" and start LIKE ?', (asn,))
+        row = self.cursor.fetchone()
+        if row is not None:
+            return (row[0], self.get_name_from_country_code(row[0]) )
+        return None
 
     def rir_or_lir_lookup_ipv6(self, ip_addr, ip_query, type_q):
         if type_q == "RIR":
@@ -591,7 +597,7 @@ def main():
             help = "Hack the internet")
 
     parser.add_option("-r", "--reverse-lookup", action="store", dest="reverse_host", \
-            help = "Return the country name for the specified IP or ASN")
+            help = "Return the country name for the specified IP or ASN or hostname")
 
     parser.add_option("-i", "--initialize-delegation", action="store_true", dest="init_del", \
             help = "Initialize or update delegation information")
@@ -644,7 +650,7 @@ def main():
         print "all your bases are belong to us!"
         sys.exit(0)
     if options.asn and options.reverse_host:
-      block_f.asn_lookup(options.reverse_host)
+      block_f.reverse_asn(options.reverse_host)
       sys.exit(0)
 
     if options.reverse_host:
