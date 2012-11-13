@@ -20,16 +20,24 @@ class BlockFinderTestExtras:
 
     def create_new_test_cache_dir(self):
         self.block_f.create_blockfinder_cache_dir()
-        self.block_f.connect_to_database()
-        self.block_f.create_sql_database()
+        self.block_f.database_cache.connect_to_database()
+        self.block_f.database_cache.create_sql_database()
 
     def load_del_test_data(self):
         delegations = [test_data.return_sub_apnic_del()]
-        self.block_f.insert_into_sql_database(delegations)
+        rows = []
+        for delegation in delegations:
+            for entry in delegation:
+                registry = str(entry['registry'])
+                if not registry.isdigit() and str (entry['cc']) !="*":
+                    temp_row = [entry['registry'], entry['cc'], entry['start'], \
+                        entry['value'], entry['date'], entry['status'], entry['type']]
+                    rows.append(temp_row)
+        self.block_f.database_cache.insert_into_sql_database(rows)
 
     def load_lir_test_data(self):
         self.block_f.update_lir_delegation_cache("https://github.com/downloads/d1b/blockfinder/tiny_lir_data_for_test.gz")
-        self.block_f.create_or_replace_lir_table_in_db()
+        self.block_f.database_cache.create_or_replace_lir_table_in_db()
         self.block_f.extract_info_from_lir_file_and_insert_into_sqlite("tiny_lir_data_for_test")
 
     def copy_country_code_txt(self):
@@ -73,18 +81,18 @@ class CheckReverseLookup(BaseBlockfinderTest):
         self.extra_block_test_f.clean_up()
 
     def reverse_lookup_cc_matcher(self, method, values):
-        self.block_f.connect_to_database()
+        self.block_f.database_cache.connect_to_database()
         self.block_f.download_country_code_file()
         for value, cc in values:
             result = method(value)
-            self.assertEqual(result[0], cc)
+            self.assertEqual(result, cc)
 
     def test_rir_lookup(self):
-        method = self.block_f.rir_lookup
+        method = self.block_f.database_cache.rir_lookup
         self.reverse_lookup_cc_matcher(method, self.rirValues)
 
     def test_asn_lookup(self):
-        method = self.block_f.asn_lookup
+        method = self.block_f.database_cache.asn_lookup
         self.reverse_lookup_cc_matcher(method, self.asnValues)
 
     def test_ip_address_to_dec(self):
@@ -99,33 +107,34 @@ class CheckBlockFinder(BaseBlockfinderTest):
                              ('kp', ['175.45.176.0/22']))
 
     def test_ipv4_bf(self):
-        self.block_f.connect_to_database()
+        self.block_f.database_cache.connect_to_database()
         for cc, values in self.known_ipv4_Results:
-            result = self.block_f.use_sql_database("ipv4", cc.upper())
+            result = self.block_f.database_cache.use_sql_database("ipv4", cc.upper())
             self.assertEqual(result, values)
-        self.block_f.conn.close()
+        self.block_f.database_cache.commit_and_close_database()
     def test_ipv6_bf(self):
-        self.block_f.connect_to_database()
+        self.block_f.database_cache.connect_to_database()
         expected = ['2001:200:2000::/35', '2001:200:4000::/34', '2001:200:8000::/33', '2001:200::/35']
-        result = self.block_f.use_sql_database("ipv6", "JP")
+        result = self.block_f.database_cache.use_sql_database("ipv6", "JP")
         self.assertEqual(result, expected)
-        self.block_f.conn.close()
+        self.block_f.database_cache.commit_and_close_database()
 
     def test_lir_fetching_and_use(self):
         """ test LIR fetching and use. """
         """ ipv4 """
-        self.block_f.connect_to_database()
+        self.block_f.database_cache.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.block_f.download_country_code_file()
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), ["IT", "Italy"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), ["IT", "Italy"])
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), ["DE", "Germany"])
+        self.assertEqual(self.block_f.database_cache._rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), "IT")
+        self.assertEqual(self.block_f.database_cache._rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), "IT")
+        self.assertEqual(self.block_f.database_cache._rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), "DE")
 
         """ ipv6 """
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
-        self.assertEqual(self.block_f.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
-        self.block_f.conn.close()
+        if IPy:
+            self.assertEqual(self.block_f.database_cache.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
+            self.assertEqual(self.block_f.database_cache.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
+            self.assertEqual(self.block_f.database_cache.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
+        self.block_f.database_cache.commit_and_close_database()
 
 class CheckBasicFunctionOperation(unittest.TestCase):
     def test_calc_ipv4_subnet_boundary(self):
