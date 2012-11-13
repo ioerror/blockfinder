@@ -155,7 +155,7 @@ class DatabaseCache:
             self.cursor.execute("select cc, start, value from lir_record where type=6 and start like ?", (ip_query,) )
         for row in self.cursor:
             try:
-                if ip_addr in IPy.IP(row[1] + "/" + str(row[2])):
+                if IPy and ip_addr in IPy.IP(row[1] + "/" + str(row[2])):
                     return row[0]
             except ValueError, e:
                 if self.verbose:
