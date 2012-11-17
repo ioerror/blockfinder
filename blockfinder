@@ -165,8 +165,8 @@ class DatabaseCache:
             self.cursor.execute(sql,
                     (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         else:
-            sql = ('SELECT * FROM lir_record WHERE start LIKE ? AND '
-                   'type = 4')
+            sql = ('SELECT cc, start, value FROM lir_record '
+                   'WHERE start LIKE ? AND type = 4')
             self.cursor.execute(sql,
                     (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
         row = self.cursor.fetchone()
@@ -176,8 +176,8 @@ class DatabaseCache:
                        'WHERE type = "ipv4" AND start LIKE ?')
                 self.cursor.execute(sql, (ipv4arr[0] + ".%",))
             else:
-                sql = ('SELECT * FROM lir_record WHERE start LIKE ? '
-                       'AND type = 4')
+                sql = ('SELECT cc, start, value FROM lir_record '
+                       'WHERE start LIKE ? AND type = 4')
                 self.cursor.execute(sql, (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
         while(row is not None):
