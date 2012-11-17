@@ -37,6 +37,31 @@ try:
 except ImportError:
     Ipaddr = None
 
+def ip_address_to_dec(ip_addr):
+    octets = ip_addr.split('.')
+    return long(''.join(["%02X" % long(octet) for octet in octets]), 16)
+
+def return_first_ip_and_number_in_inetnum(line):
+    start_ip = line.split("-")[0].strip()
+    end_ip = line.split("-")[1].strip()
+    num_ips = 1 + (ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip) )
+    return start_ip, num_ips
+
+def ipv4_address_valid(ip_addr):
+    ipv4arr = ip_addr.split('.')
+    if len(ipv4arr) == 4:
+        for items in ipv4arr:
+            if int(items) > 255:
+                return False
+        return True
+    else:
+        return False
+
+def calculate_ipv4_subnet(host_count):
+    if host_count <= 1:
+        return 32
+    return 34 - len(bin(host_count - 1))
+
 
 class BlockFinderError(Exception):
     pass
@@ -172,84 +197,76 @@ class DatabaseCache:
         self.cursor.execute(insert_text, data)
         self.conn.commit()
 
-def update_progress_bar(percent_done, caption=""):
-    """Write a progress bar to the console"""
-    rows, columns = map(int, os.popen('stty size', 'r').read().split())
-    width = columns - 4 - len(caption)
-    sys.stdout.write("[%s>%s] %s\x1b[G" % (
-                                    "=" * int(percent_done*width),
-                                    "." * (width - int(percent_done * width)),
-                                    caption) )
-    sys.stdout.flush()
+class DownloaderParser:
+    def __init__(self, cache_dir, database_cache, user_agent, verbose=False):
+        self.cache_dir = cache_dir
+        self.database_cache = database_cache
+        self.user_agent = user_agent
+        self.verbose = verbose
+
+    def update_progress_bar(self, percent_done, caption=""):
+        """Write a progress bar to the console"""
+        rows, columns = map(int, os.popen('stty size', 'r').read().split())
+        width = columns - 4 - len(caption)
+        sys.stdout.write("[%s>%s] %s\x1b[G" % (
+                                        "=" * int(percent_done*width),
+                                        "." * (width - int(percent_done * width)),
+                                        caption) )
+        sys.stdout.flush()
 
     # XXX TODO:allow the use of a proxy
     # Set up a proper Request object, set the user agent and if desired, a proxy
-def fetch(url, useragent):
-    """ Fetch (with progress meter) and return the contents of a url. """
-    req = urllib2.Request(url)
-    req.add_header('User-Agent', useragent)
-    #req.set_proxy(host, type)
-    fetcher = urllib2.urlopen(req)
-    length_header = fetcher.headers.get("Content-Length")
-    if length_header == None:
-        """ The server did not provide a Content-Length header. """
-        length_header = -1
-    length = int(length_header)
-    print "Fetching ", str (round(float(length/1024),2)) , " kilobytes"
-    ret = ""
-    t_start = time.time()
-    while True:
-        t_delta = time.time() - t_start
-        if t_delta == 0:
-            t_delta = 1
-        if length_header != -1:
-            update_progress_bar( float(len(ret)) / length,
-                "%.2f K/s" % (len(ret) / 1024 / t_delta) )
-        tmp = fetcher.read(1024)
-        if len(tmp) == 0:
-            if len(ret) != length and length_header != -1:
-                raise Exception("Expected %s bytes, only received %s" % (
-                                len(ret), length ))
-            print ""
-            return ret
-        ret += tmp
+    def fetch(self, url):
+        """ Fetch (with progress meter) and return the contents of a url. """
+        req = urllib2.Request(url)
+        req.add_header('User-Agent', self.user_agent)
+        #req.set_proxy(host, type)
+        fetcher = urllib2.urlopen(req)
+        length_header = fetcher.headers.get("Content-Length")
+        if length_header == None:
+            """ The server did not provide a Content-Length header. """
+            length_header = -1
+        length = int(length_header)
+        print "Fetching ", str (round(float(length/1024),2)) , " kilobytes"
+        ret = ""
+        t_start = time.time()
+        while True:
+            t_delta = time.time() - t_start
+            if t_delta == 0:
+                t_delta = 1
+            if length_header != -1:
+                self.update_progress_bar( float(len(ret)) / length,
+                    "%.2f K/s" % (len(ret) / 1024 / t_delta) )
+            tmp = fetcher.read(1024)
+            if len(tmp) == 0:
+                if len(ret) != length and length_header != -1:
+                    raise Exception("Expected %s bytes, only received %s" % (
+                                    len(ret), length ))
+                print ""
+                return ret
+            ret += tmp
 
-def write_to_a_text_file(file_loc, data):
-    f = open(file_loc, 'w')
-    f.write(data)
-    f.close()
+    def write_to_a_text_file(self, file_loc, data):
+        f = open(file_loc, 'w')
+        f.write(data)
+        f.close()
 
-def calculate_ipv4_subnet(host_count):
-    if host_count <= 1:
-        return 32
-    return 34 - len(bin(host_count - 1))
+    def extract_data_from_gzip_file(self, gzip_file_loc, extract_file_loc):
+        gzip_file = gzip.open(gzip_file_loc, 'rb')
+        gunzipped_file = open(extract_file_loc, 'w')
+        while True:
+            gunzipped_data = gzip_file.read(1024)
+            if gunzipped_data == "":
+                break
+            gunzipped_file.writelines(gunzipped_data)
+        gzip_file.close()
+        gunzipped_file.close()
 
-def extract_data_from_gzip_file(gzip_file_loc, extract_file_loc):
-    gzip_file = gzip.open(gzip_file_loc, 'rb')
-    gunzipped_file = open(extract_file_loc, 'w')
-    while True:
-        gunzipped_data = gzip_file.read(1024)
-        if gunzipped_data == "":
-            break
-        gunzipped_file.writelines(gunzipped_data)
-
-    gzip_file.close()
-    gunzipped_file.close()
-
-def read_data_from_binary_file(fname):
-    f = open(fname, 'rb')
-    data = f.read()
-    f.close()
-    return data
-
-class Blockfinder(object):
-
-    def __init__(self, cache_dir, useragent, verbose=False):
-        self.cache_dir = cache_dir
-        self.useragent = useragent
-        self.verbose = verbose
-        self.database_cache = DatabaseCache(cache_dir, verbose)
-        self.database_cache.connect_to_database()
+    def read_data_from_binary_file(self, fname):
+        f = open(fname, 'rb')
+        data = f.read()
+        f.close()
+        return data
 
     def create_blockfinder_cache_dir(self):
         if not os.path.exists(self.cache_dir):
@@ -261,11 +278,11 @@ class Blockfinder(object):
         """ Attempt to cache the contents of a delegation url in our cache dir. """
         delegation = ""
         print "Fetching " + delegation_url
-        delegation = fetch(delegation_url, self.useragent)
+        delegation = self.fetch(delegation_url)
         tmp = delegation_url.split('/')
         delegation_file = str(self.cache_dir) + str(tmp[-1])
         try:
-            write_to_a_text_file(delegation_file, delegation)
+            self.write_to_a_text_file(delegation_file, delegation)
             return True
         except Exception, e:
             print repr(e)
@@ -306,7 +323,7 @@ class Blockfinder(object):
         checksum = ""
         checksum_of_file = ""
         try:
-            data = read_data_from_binary_file(self.cache_dir + delegation_file)
+            data = self.read_data_from_binary_file(self.cache_dir + delegation_file)
             checksum_of_file = str (hashlib.md5(data).hexdigest() )
         except Exception, e:
             print repr(e)
@@ -356,7 +373,7 @@ class Blockfinder(object):
             gunziped_filename = gzip_filename.rpartition('.')[0]
             if self.verbose:
                 print "Unpacking " + del_type + "file " + gzip_filename + " into our cache as " + gunziped_filename
-            extract_data_from_gzip_file(self.cache_dir + gzip_filename, self.cache_dir + gunziped_filename)
+            self.extract_data_from_gzip_file(self.cache_dir + gzip_filename, self.cache_dir + gunziped_filename)
 
     def update_geoip_cache(self, geoip_urls):
         """ Fetch country level resolution GeoIP files from a given url and cache
@@ -392,7 +409,59 @@ class Blockfinder(object):
         """ Download and save the latest opencountrycode TXT(';' - separated) file """
         url = "http://www.iso.org/iso/list-en1-semic-3.txt"
         text_content = urllib2.urlopen(url).read()
-        write_to_a_text_file(self.cache_dir + "countrycodes.txt", text_content)
+        self.write_to_a_text_file(self.cache_dir + "countrycodes.txt", text_content)
+
+    def extract_info_from_lir_file_and_insert_into_sqlite(self, filename):
+        block = []
+        country = ""
+        entry = False
+        version = ""
+        for line in open(self.cache_dir + filename, "r"):
+            line = line.replace("\n", "")
+            if line == "":
+                entry = False
+                country, block, version = "", [], ""
+            elif not entry and "inetnum:" in line:
+                try:
+                    line = line.replace("inetnum:", "").strip()
+                    start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
+                    block = [start_ip, num_ips]
+                    entry = True
+                    version = "4"
+                except Exception, e:
+                    if self.verbose:
+                        print repr(e), line
+            elif not entry and "inet6num:" in line:
+                try:
+                    block = line.replace("inet6num:", "").strip().split("/")
+                    entry = True
+                    version = "6"
+                except Exception, e:
+                    if self.verbose:
+                        print repr(e), line
+            elif entry and "country:" in line:
+                country = line.replace("country:", "").strip()
+                data = (country, block[0], block[1], version )
+                self.database_cache.insert_lir_delegation(data)
+
+    def create_db_and_insert_delegation_into_db(self, delegation_urls):
+        self.database_cache.create_sql_database()
+        delegations = self.load_all_delegations(delegation_urls)
+        rows = []
+        for delegation in delegations:
+            for entry in delegation:
+                registry = str(entry['registry'])
+                if not registry.isdigit() and str (entry['cc']) !="*":
+                    temp_row = [entry['registry'], entry['cc'], entry['start'], \
+                        entry['value'], entry['date'], entry['status'], entry['type']]
+                    rows.append(temp_row)
+        self.database_cache.insert_into_sql_database(rows)
+
+class Lookup:
+    def __init__(self, cache_dir, database_cache, verbose=False):
+        self.cache_dir = cache_dir
+        self.database_cache = database_cache
+        self.verbose = verbose
 
     def build_country_code_dictionary(self):
         """ Return a dictionary mapping country name to the country code"""
@@ -486,71 +555,16 @@ class Blockfinder(object):
                 print "The GeoIP data is likely closer to being correct due to " \
                       "sub-delegation issues with LIR databases"
 
-    def extract_info_from_lir_file_and_insert_into_sqlite(self, filename):
-        block = []
-        country = ""
-        entry = False
-        version = ""
-        for line in open(self.cache_dir + filename, "r"):
-            line = line.replace("\n", "")
-            if line == "":
-                entry = False
-                country, block, version = "", [], ""
-            elif not entry and "inetnum:" in line:
-                try:
-                    line = line.replace("inetnum:", "").strip()
-                    start_ip, num_ips = return_first_ip_and_number_in_inetnum(line)
-                    block = [start_ip, num_ips]
-                    entry = True
-                    version = "4"
-                except Exception, e:
-                    if self.verbose:
-                        print repr(e), line
-            elif not entry and "inet6num:" in line:
-                try:
-                    block = line.replace("inet6num:", "").strip().split("/")
-                    entry = True
-                    version = "6"
-                except Exception, e:
-                    if self.verbose:
-                        print repr(e), line
-            elif entry and "country:" in line:
-                country = line.replace("country:", "").strip()
-                data = (country, block[0], block[1], version )
-                self.database_cache.insert_lir_delegation(data)
+    def asn_lookup(self, asn):
+        asn_cc = self.database_cache.asn_lookup(asn)
+        if asn_cc:
+            print "AS country code: %s" % asn_cc
+            print "AS country name: %s" % self.get_name_from_country_code(asn_cc)
+        else:
+            print "AS%s not found!" % asn
 
-    def create_db_and_insert_delegation_into_db(self, delegation_urls):
-        self.database_cache.create_sql_database()
-        delegations = self.load_all_delegations(delegation_urls)
-        rows = []
-        for delegation in delegations:
-            for entry in delegation:
-                registry = str(entry['registry'])
-                if not registry.isdigit() and str (entry['cc']) !="*":
-                    temp_row = [entry['registry'], entry['cc'], entry['start'], \
-                        entry['value'], entry['date'], entry['status'], entry['type']]
-                    rows.append(temp_row)
-        self.database_cache.insert_into_sql_database(rows)
-
-def return_first_ip_and_number_in_inetnum(line):
-    start_ip = line.split("-")[0].strip()
-    end_ip = line.split("-")[1].strip()
-    num_ips = 1 + (ip_address_to_dec(end_ip) - ip_address_to_dec(start_ip) )
-    return start_ip, num_ips
-
-def ip_address_to_dec(ip_addr):
-    octets = ip_addr.split('.')
-    return long(''.join(["%02X" % long(octet) for octet in octets]), 16)
-
-def ipv4_address_valid(ip_addr):
-    ipv4arr = ip_addr.split('.')
-    if len(ipv4arr) == 4:
-        for items in ipv4arr:
-            if int(items) > 255:
-                return False
-        return True
-    else:
-        return False
+    def fetch_rir_blocks_by_country(self, request, country):
+        return self.database_cache.use_sql_database(request, country)
 
 def main():
     """ Where the magic starts. """
@@ -562,7 +576,7 @@ def main():
     parser.add_option("-c", "--cachedir", action="store", dest="cache_dir", \
             help = "Set the cache directory", default= str(os.path.expanduser('~')) + "/.blockfinder/" )
 
-    parser.add_option("-u","--useragent", action="store", dest="useragent", \
+    parser.add_option("-u","--useragent", action="store", dest="user_agent", \
             help = "Provide a useragent which will be used when fetching delegation files" , \
             default="Mozilla/5.0")
 
@@ -602,10 +616,13 @@ def main():
     (options, args) = parser.parse_args()
     country = None
     verbose = options.verbose
-    useragent = options.useragent
+    user_agent = options.user_agent
     cache_dir = options.cache_dir
 
-    block_f = Blockfinder(cache_dir, useragent, verbose)
+    database_cache = DatabaseCache(cache_dir, verbose)
+    database_cache.connect_to_database()
+    downloader_parser = DownloaderParser(cache_dir, database_cache, user_agent)
+    lookup = Lookup(cache_dir, database_cache)
 
     requests = []
     delegation_urls = """
@@ -625,10 +642,10 @@ def main():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
 
-    block_f.create_blockfinder_cache_dir()
+    downloader_parser.create_blockfinder_cache_dir()
     if not os.path.exists(cache_dir + "countrycodes.txt"):
         try:
-            block_f.download_country_code_file()
+            downloader_parser.download_country_code_file()
         except Exception, e:
             print repr(e)
 
@@ -637,16 +654,11 @@ def main():
         print "all your bases are belong to us!"
         sys.exit(0)
     if options.asn and options.reverse_host:
-        asn_cc = block_f.database_cache.asn_lookup(options.reverse_host)
-        if asn_cc:
-            print "AS country code: %s" % asn_cc
-            print "AS country name: %s" % block_f.get_name_from_country_code(asn_cc)
-        else:
-            print "AS%s not found!" % options.reverse_host
+        lookup.asn_lookup(options.reverse_host)
         sys.exit(0)
 
     if options.reverse_host:
-        block_f.lookup_ip_address(options.reverse_host)
+        lookup.lookup_ip_address(options.reverse_host)
         sys.exit(0)
 
     if options.ipv4:
@@ -659,29 +671,29 @@ def main():
     if options.cc:
         country = options.cc.upper()
     if options.country_name:
-        country = block_f.get_country_code_from_name(options.country_name)
+        country = lookup.get_country_code_from_name(options.country_name)
 
     if options.reload_del:
-        block_f.create_db_and_insert_delegation_into_db(delegation_urls)
+        downloader_parser.create_db_and_insert_delegation_into_db(delegation_urls)
         sys.exit(0)
 
     # Update and quit.
     if options.init_del:
         if GeoIP:
-            block_f.update_geoip_cache(geoip_country_urls)
-        block_f.update_delegation_cache(delegation_urls)
+            downloader_parser.update_geoip_cache(geoip_country_urls)
+        downloader_parser.update_delegation_cache(delegation_urls)
         if verbose:
-            block_f.verify_cache(delegation_files)
-        block_f.create_db_and_insert_delegation_into_db(delegation_urls)
+            lookup.verify_cache(delegation_files)
+        downloader_parser.create_db_and_insert_delegation_into_db(delegation_urls)
         if not options.init_lir:
             sys.exit(0)
     if options.init_lir or options.reload_lir:
         if options.init_lir:
-            block_f.update_lir_delegation_cache(lir_urls)
+            downloader_parser.update_lir_delegation_cache(lir_urls)
         print "Extracting and inserting information from the lir files can take up to 5 minutes"
-        block_f.database_cache.create_or_replace_lir_table_in_db()
+        database_cache.create_or_replace_lir_table_in_db()
         for fname in "ripe.db.inetnum ripe.db.inet6num".split():
-            block_f.extract_info_from_lir_file_and_insert_into_sqlite(fname)
+            downloader_parser.extract_info_from_lir_file_and_insert_into_sqlite(fname)
         sys.exit(0)
 
     if not requests:
@@ -693,7 +705,7 @@ def main():
         print "It appears your search did not match a country."
         sys.exit(1)
     # Check our cache age and warn if it's aged
-    if block_f.cache_is_dated(delegation_files) and verbose:
+    if downloader_parser.cache_is_dated(delegation_files) and verbose:
         print "Your delegation cache is older than 24 hours; you probably want to update it."
     if verbose:
         print "Using country code: %s" % country
@@ -701,14 +713,14 @@ def main():
     for request in requests:
         try:
             try:
-                print " \n".join(block_f.database_cache.use_sql_database(request, country))
+                print " \n".join(lookup.fetch_rir_blocks_by_country(request, country))
             except sqlite3.Error, e:
                 print repr(e)
                 print "Please try reloading the database. (run ./blockfinder -i)."
         except Exception, e:
             print repr(e)
     try:
-        block_f.database_cache.commit_and_close_database()
+        database_cache.commit_and_close_database()
     except Exception, e:
         print repr(e)
 
