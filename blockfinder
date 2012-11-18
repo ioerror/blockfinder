@@ -151,7 +151,7 @@ class DatabaseCache:
                   "delegation cache." % \
                   self._get_possible_match_entries(cc))
             sql = ('SELECT COUNT(*) FROM delegations WHERE cc = ? '
-                  'AND type = ?')
+                   'AND type = ?')
             self.cursor.execute(sql, (cc[0], request))
             result.append("We found %d matching entries in our "
                     "delegation cache." % int(self.cursor.fetchone()[0]))
@@ -180,7 +180,7 @@ class DatabaseCache:
                        'WHERE start LIKE ? AND type = 4')
                 self.cursor.execute(sql, (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
-        while(row is not None):
+        while (row is not None):
             if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) \
                     < (ip_address_to_dec(row[1]) + row[2])):
                 return row[0]
@@ -419,7 +419,7 @@ class DownloaderParser:
             if self.verbose:
                 print "Unpacking " + del_type + "file " + \
                         gzip_filename + " into our cache as " + \
-                       gunziped_filename
+                        gunziped_filename
             self.extract_data_from_gzip_file(self.cache_dir + \
                     gzip_filename, self.cache_dir + gunziped_filename)
 
@@ -497,7 +497,7 @@ class DownloaderParser:
                         print repr(e), line
             elif entry and "country:" in line:
                 country = line.replace("country:", "").strip()
-                data = (country, block[0], block[1], version )
+                data = (country, block[0], block[1], version)
                 self.database_cache.insert_lir_delegation(data)
 
     def create_db_and_insert_delegation_into_db(self, delegation_urls):
@@ -507,7 +507,7 @@ class DownloaderParser:
         for delegation in delegations:
             for entry in delegation:
                 registry = str(entry['registry'])
-                if not registry.isdigit() and str(entry['cc']) !="*":
+                if not registry.isdigit() and str(entry['cc']) != "*":
                     temp_row = [entry['registry'], entry['cc'], \
                             entry['start'], entry['value'], \
                             entry['date'], entry['status'], entry['type']]
@@ -559,10 +559,11 @@ class Lookup:
         # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/\
         # test_v6.py?revision=1.1&view=markup
         #        gi = GeoIP.open(self.cache_dir + \
-        #                "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
+        #                "GeoIPv6.dat", GeoIP.GEOIP_STANDARD)
         #        cc = gi.country_code_by_addr_v6(ip_addr)
         #        cc_name = gi.country_name_by_addr_v6(ip_addr)
-        gi = GeoIP.open(self.cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+        gi = GeoIP.open(self.cache_dir + "GeoIP.dat", \
+                GeoIP.GEOIP_STANDARD)
         cc = gi.country_code_by_addr(ip_addr)
         cc_name = gi.country_name_by_addr(ip_addr)
         return cc, cc_name
@@ -576,8 +577,8 @@ class Lookup:
             result = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
                     ip_query, i)
             if result:
-                   print i, "Country Name:", \
-                           self.get_name_from_country_code(result)
+                print i, "Country Name:", \
+                        self.get_name_from_country_code(result)
             else:
                 ip_query = ip_addr.split(":")[0] + ":%"
                 result = self.database_cache.rir_or_lir_lookup_ipv6( \
@@ -588,7 +589,7 @@ class Lookup:
 
     def lookup_ip_address(self, ip_addr):
         """ Return the country code and name for a given ip address.
-            Attempts to use GeoIP if available."""
+            Attempts to use GeoIP if available. """
         ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
         if IPy and IPy.IP(ip_addr).version() == 6:
             self.database_cache.lookup_ipv6_address(ip_addr)
