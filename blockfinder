@@ -5,7 +5,7 @@
 import urllib2
 import os
 import time
-from optparse import OptionParser
+import optparse
 import sys
 import sqlite3
 import hashlib
@@ -151,7 +151,7 @@ class DatabaseCache:
                   "delegation cache." % \
                   self._get_possible_match_entries(cc))
             sql = ('SELECT COUNT(*) FROM delegations WHERE cc = ? '
-                  'AND type = ?')
+                   'AND type = ?')
             self.cursor.execute(sql, (cc[0], request))
             result.append("We found %d matching entries in our "
                     "delegation cache." % int(self.cursor.fetchone()[0]))
@@ -180,7 +180,7 @@ class DatabaseCache:
                        'WHERE start LIKE ? AND type = 4')
                 self.cursor.execute(sql, (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
-        while(row is not None):
+        while (row is not None):
             if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) \
                     < (ip_address_to_dec(row[1]) + row[2])):
                 return row[0]
@@ -419,7 +419,7 @@ class DownloaderParser:
             if self.verbose:
                 print "Unpacking " + del_type + "file " + \
                         gzip_filename + " into our cache as " + \
-                       gunziped_filename
+                        gunziped_filename
             self.extract_data_from_gzip_file(self.cache_dir + \
                     gzip_filename, self.cache_dir + gunziped_filename)
 
@@ -497,7 +497,7 @@ class DownloaderParser:
                         print repr(e), line
             elif entry and "country:" in line:
                 country = line.replace("country:", "").strip()
-                data = (country, block[0], block[1], version )
+                data = (country, block[0], block[1], version)
                 self.database_cache.insert_lir_delegation(data)
 
     def create_db_and_insert_delegation_into_db(self, delegation_urls):
@@ -507,7 +507,7 @@ class DownloaderParser:
         for delegation in delegations:
             for entry in delegation:
                 registry = str(entry['registry'])
-                if not registry.isdigit() and str(entry['cc']) !="*":
+                if not registry.isdigit() and str(entry['cc']) != "*":
                     temp_row = [entry['registry'], entry['cc'], \
                             entry['start'], entry['value'], \
                             entry['date'], entry['status'], entry['type']]
@@ -559,10 +559,11 @@ class Lookup:
         # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/\
         # test_v6.py?revision=1.1&view=markup
         #        gi = GeoIP.open(self.cache_dir + \
-        #                "GeoIPv6.dat",GeoIP.GEOIP_STANDARD)
+        #                "GeoIPv6.dat", GeoIP.GEOIP_STANDARD)
         #        cc = gi.country_code_by_addr_v6(ip_addr)
         #        cc_name = gi.country_name_by_addr_v6(ip_addr)
-        gi = GeoIP.open(self.cache_dir + "GeoIP.dat",GeoIP.GEOIP_STANDARD)
+        gi = GeoIP.open(self.cache_dir + "GeoIP.dat", \
+                GeoIP.GEOIP_STANDARD)
         cc = gi.country_code_by_addr(ip_addr)
         cc_name = gi.country_name_by_addr(ip_addr)
         return cc, cc_name
@@ -576,8 +577,8 @@ class Lookup:
             result = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
                     ip_query, i)
             if result:
-                   print i, "Country Name:", \
-                           self.get_name_from_country_code(result)
+                print i, "Country Name:", \
+                        self.get_name_from_country_code(result)
             else:
                 ip_query = ip_addr.split(":")[0] + ":%"
                 result = self.database_cache.rir_or_lir_lookup_ipv6( \
@@ -588,7 +589,7 @@ class Lookup:
 
     def lookup_ip_address(self, ip_addr):
         """ Return the country code and name for a given ip address.
-            Attempts to use GeoIP if available."""
+            Attempts to use GeoIP if available. """
         ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
         if IPy and IPy.IP(ip_addr).version() == 6:
             self.database_cache.lookup_ipv6_address(ip_addr)
@@ -631,54 +632,76 @@ class Lookup:
 
 def main():
     """ Where the magic starts. """
-    parser = OptionParser()
+    usage = "Usage: %prog [options]\n\n" \
+            "Example: %prog -v -t mm"
+    parser = optparse.OptionParser(usage)
     parser.add_option("-v", "--verbose", action="store_true", \
-            dest="verbose", help = "Be verbose", default=False)
-    parser.add_option("-c", "--cachedir", action="store", \
-            dest="cache_dir", help = "Set the cache directory", \
+            dest="verbose", help = "be verbose", default=False)
+    parser.add_option("-c", "--cache-dir", action="store", dest="dir", \
+            help="set cache directory [default: %default]", \
             default=str(os.path.expanduser('~')) + "/.blockfinder/")
-    parser.add_option("-u","--useragent", action="store",
-            dest="user_agent",
-            help=('Provide a useragent which will be used when '
-                  'fetching delegation files'), default="Mozilla/5.0")
-    parser.add_option("-4", "--ipv4", action="store_true", dest="ipv4", \
-            help="Search IPv4 allocations")
-    parser.add_option("-6", "--ipv6", action="store_true", dest="ipv6", \
-            help="Search IPv6 allocations")
-    parser.add_option("-a", "--asn", action="store_true", dest="asn", \
-            help="Search ASN allocations")
-    parser.add_option("-t", "--nation-state", action="store", dest="cc", \
-            help="Set the country to search (given as a two-letter code)")
-    parser.add_option("-n", "--country-name", action="store", \
-            dest="country_name", help="Set country to search (full name)")
+    parser.add_option("--user-agent", action="store", dest="ua", \
+            help=('provide a User-Agent which will be used when '
+                  'fetching delegation files [default: "%default"]'), \
+            default="Mozilla/5.0")
     parser.add_option("-x", "--hack-the-internet", action="store_true", \
-            dest="hack_the_internet", help="Hack the internet")
-    parser.add_option("-r", "--reverse-lookup", action="store", \
-            dest="reverse_host", \
-            help=("Return the country name for the specified IP or ASN "
-                  "or hostname"))
-    parser.add_option("-i", "--initialize-delegation", \
+            dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
+    group = optparse.OptionGroup(parser, "Cache modes",
+            "Pick at most one of these modes to initialize or update " \
+            "the local cache.  May not be combined with lookup modes.")
+    group.add_option("-i", "--init-rir", \
             action="store_true", dest="init_del", \
-            help="Initialize or update delegation information")
-    parser.add_option("-l", "--initialize-lir", action="store_true", \
-            dest="init_lir", help="Initialize or update lir information")
-    parser.add_option("-d", "--reload-delegation", action="store_true", \
+            help="initialize or update delegation information")
+    group.add_option("-d", "--reload-rir", action="store_true", \
             dest="reload_del", \
-            help="Use existing delegation files to update the database")
-    parser.add_option("-z", "--reload-lir", action="store_true",
+            help="use existing delegation files to update the database")
+    group.add_option("-l", "--init-lir", action="store_true", \
+            dest="init_lir",
+            help=("initialize or update lir information; can take up to "
+                  "5 minutes"))
+    group.add_option("-z", "--reload-lir", action="store_true",
             dest="reload_lir", \
-            help="Use existing lir files to update the database")
+            help=("use existing lir files to update the database; can "
+                  "take up to 5 minutes"))
+    parser.add_option_group(group)
+    group = optparse.OptionGroup(parser, "Lookup modes",
+            "Pick at most one of these modes to look up data in the " \
+            "local cache.  May not be combined with cache modes.")
+    group.add_option("-4", "--ipv4", action="store", dest="ipv4", \
+            help=("look up country code and name for the specified IPv4 "
+                  "address"))
+    group.add_option("-6", "--ipv6", action="store", dest="ipv6", \
+            help=("look up country code and name for the specified IPv6 "
+                  "address"))
+    group.add_option("-a", "--asn", action="store", dest="asn", \
+            help="look up country code and name for the specified ASN")
+    group.add_option("-t", "--code", action="store", dest="cc", \
+            help=("look up all allocations in the delegation cache for "
+                  "the specified two-letter country code"))
+    group.add_option("-n", "--name", action="store", dest="cn", \
+            help=("look up all allocations in the delegation cache for "
+                  "the specified full country name"))
+    parser.add_option_group(group)
+    group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
-    country = None
-    verbose = options.verbose
-    user_agent = options.user_agent
-    cache_dir = options.cache_dir
-    database_cache = DatabaseCache(cache_dir, verbose)
+    if options.hack_the_internet:
+        print "all your bases are belong to us!"
+        sys.exit(0)
+    options_dict = vars(options)
+    modes = 0
+    for mode in ["init_del", "init_lir", "reload_del", "reload_lir",
+                 "ipv4", "ipv6", "asn", "cc", "cn"]:
+        if options_dict.has_key(mode) and options_dict.get(mode):
+            modes += 1
+    if modes > 1:
+        parser.error("only 1 cache or lookup mode allowed")
+    elif modes == 0:
+        parser.error("must provide 1 cache or lookup mode")
+    database_cache = DatabaseCache(options.dir, options.verbose)
     database_cache.connect_to_database()
-    downloader_parser = DownloaderParser(cache_dir, database_cache, \
-            user_agent)
-    lookup = Lookup(cache_dir, database_cache)
-    requests = []
+    downloader_parser = DownloaderParser(options.dir, database_cache, \
+            options.ua)
+    lookup = Lookup(options.dir, database_cache)
     delegation_urls = """
         ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
         ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
@@ -695,46 +718,43 @@ def main():
         filename = url.rpartition('/')
         delegation_files.append(filename[-1])
     downloader_parser.create_blockfinder_cache_dir()
-    if not os.path.exists(cache_dir + "countrycodes.txt"):
+    if not os.path.exists(options.dir + "countrycodes.txt"):
         try:
             downloader_parser.download_country_code_file()
         except Exception, e:
             print repr(e)
-    if options.hack_the_internet:
-        print "all your bases are belong to us!"
-        sys.exit(0)
-    if options.asn and options.reverse_host:
-        lookup.asn_lookup(options.reverse_host)
-        sys.exit(0)
-    if options.reverse_host:
-        lookup.lookup_ip_address(options.reverse_host)
-        sys.exit(0)
-    if options.ipv4:
-        requests.append("ipv4")
-    if options.ipv6:
-        requests.append("ipv6")
+    if options.ipv4 or options.ipv6 or options.asn or options.cc \
+            or options.cn:
+        if downloader_parser.cache_is_dated(delegation_files):
+            print "Your delegation cache is older than 24 hours; you " \
+                    "probably want to update it."
     if options.asn:
-        requests.append("asn")
-    if options.cc:
-        country = options.cc.upper()
-    if options.country_name:
-        country = lookup.get_country_code_from_name(options.country_name)
-    if options.reload_del:
+        lookup.asn_lookup(options.asn)
+    elif options.ipv4:
+        lookup.lookup_ip_address(options.ipv4)
+    elif options.ipv6:
+        lookup.lookup_ip_address(options.ipv6)
+    elif options.cc or options.cn:
+        if options.cc:
+            country = options.cc.upper()
+        else:
+            country = lookup.get_country_code_from_name(options.cn)
+        if not country:
+            print "It appears your search did not match a country."
+        else:
+            for request in ["ipv4", "ipv6", "asn"]:
+                print "\n".join(lookup.fetch_rir_blocks_by_country(\
+                        request, country))
+    elif options.init_del or options.reload_del:
+        if options.init_del:
+            if GeoIP:
+                downloader_parser.update_geoip_cache(geoip_country_urls)
+            downloader_parser.update_delegation_cache(delegation_urls)
+            if options.verbose:
+                lookup.verify_cache(delegation_files)
         downloader_parser.create_db_and_insert_delegation_into_db(\
                 delegation_urls)
-        sys.exit(0)
-    # Update and quit.
-    if options.init_del:
-        if GeoIP:
-            downloader_parser.update_geoip_cache(geoip_country_urls)
-        downloader_parser.update_delegation_cache(delegation_urls)
-        if verbose:
-            lookup.verify_cache(delegation_files)
-        downloader_parser.create_db_and_insert_delegation_into_db(\
-                delegation_urls)
-        if not options.init_lir:
-            sys.exit(0)
-    if options.init_lir or options.reload_lir:
+    elif options.init_lir or options.reload_lir:
         if options.init_lir:
             downloader_parser.update_lir_delegation_cache(lir_urls)
         print "Extracting and inserting information from the lir files " \
@@ -742,35 +762,7 @@ def main():
         database_cache.create_or_replace_lir_table_in_db()
         for fname in "ripe.db.inetnum ripe.db.inet6num".split():
             downloader_parser.extract_info_from_lir_file_and_insert_into_sqlite(fname)
-        sys.exit(0)
-    if not requests:
-        print "Nothing to do. Have you requested anything?"
-        print "Example usage: blockfinder -v --ipv4 -t mm"
-        sys.exit(1)
-    if not country:
-        print "It appears your search did not match a country."
-        sys.exit(1)
-    # Check our cache age and warn if it's aged
-    if downloader_parser.cache_is_dated(delegation_files) and verbose:
-        print "Your delegation cache is older than 24 hours; you " \
-                "probably want to update it."
-    if verbose:
-        print "Using country code: %s" % country
-    for request in requests:
-        try:
-            try:
-                print " \n".join(lookup.fetch_rir_blocks_by_country(\
-                        request, country))
-            except sqlite3.Error, e:
-                print repr(e)
-                print "Please try reloading the database. (run " \
-                        "./blockfinder -i)."
-        except Exception, e:
-            print repr(e)
-    try:
-        database_cache.commit_and_close_database()
-    except Exception, e:
-        print repr(e)
+    database_cache.commit_and_close_database()
 
 if __name__ == "__main__":
     main()
