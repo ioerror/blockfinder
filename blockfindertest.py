@@ -6,11 +6,6 @@ import shutil
 from tempfile import mkdtemp
 import test_data
 
-try:
-    import IPy
-except ImportError:
-    IPy = None
-
 
 class BlockFinderTestExtras:
     def __init__(self):
@@ -68,12 +63,6 @@ class BaseBlockfinderTest(unittest.TestCase):
         self.extra_block_test_f.clean_up()
 
 class CheckReverseLookup(BaseBlockfinderTest):
-    ipValues = ( (3229318011, '192.123.123.123'),
-            (3463778365, '206.117.16.61'),
-            (4278190202, '255.0.0.122'),
-            (3654084623, '217.204.232.15'),
-            (134217728, '8.0.0.0'))
-
     rirValues = ( ('175.45.176.100', 'KP'),
                   ('193.9.26.0', 'HU'),
                   ('193.9.25.1', 'PL'),
@@ -100,11 +89,6 @@ class CheckReverseLookup(BaseBlockfinderTest):
     def test_asn_lookup(self):
         method = self.database_cache.asn_lookup
         self.reverse_lookup_cc_matcher(method, self.asnValues)
-
-    def test_ip_address_to_dec(self):
-        for dec, ip in self.ipValues:
-            result = blockfinder.ip_address_to_dec(ip)
-            self.assertEqual(result, dec)
 
 class CheckBlockFinder(BaseBlockfinderTest):
     # You can add known blocks to the tuple as a list
@@ -136,42 +120,12 @@ class CheckBlockFinder(BaseBlockfinderTest):
         self.assertEqual(self.database_cache._rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), "DE")
 
         """ ipv6 """
-        if IPy:
-            self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
-            self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
-            self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
+        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
+        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
+        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
         self.database_cache.commit_and_close_database()
 
-class CheckBasicFunctionOperation(unittest.TestCase):
-    def test_calc_ipv4_subnet_boundary(self):
-        for i in range(0, 29):
-            host_count = 2 ** i
-            subnet = 32 - i
-            self.assertEqual(blockfinder.calculate_ipv4_subnet(host_count), subnet)
-
-    def test_calc_ipv4_subnet_not_on_boundary(self):
-        self.assertEqual(blockfinder.calculate_ipv4_subnet(254), 24)
-        self.assertEqual(blockfinder.calculate_ipv4_subnet(255), 24)
-        self.assertEqual(blockfinder.calculate_ipv4_subnet(257), 23)
-        self.assertEqual(blockfinder.calculate_ipv4_subnet(259), 23)
-
-    def test_ipv4_address_to_dec(self):
-        self.assertEqual(blockfinder.ip_address_to_dec("0.0.0.0"), 0)
-        self.assertEqual(blockfinder.ip_address_to_dec("4.2.2.2"), 67240450)
-        self.assertEqual(blockfinder.ip_address_to_dec("217.204.232.15"), 3654084623)
-        self.assertEqual(blockfinder.ip_address_to_dec("255.255.255.255"), 4294967295)
-
-    def test_ipv4_address_to_dec_against_IPy(self):
-        if IPy is not None:
-            for i in range(0, 255):
-                ipaddr = "%s.%s.%s.%s" % (i, i, i, i)
-                self.assertEqual(blockfinder.ip_address_to_dec(ipaddr), IPy.IP(ipaddr).int())
-
-    def test_return_first_ip_and_number_in_inetnum(self):
-        line = "1.1.1.1 - 1.1.1.2"
-        self.assertEqual(blockfinder.return_first_ip_and_number_in_inetnum(line), ("1.1.1.1", 2) )
-
 if __name__ == '__main__':
-    for test_class in [CheckReverseLookup, CheckBlockFinder, CheckBasicFunctionOperation]:
+    for test_class in [CheckReverseLookup, CheckBlockFinder]:
         unittest.TextTestRunner(verbosity=2).run(unittest.makeSuite(test_class))
 
