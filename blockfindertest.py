@@ -125,6 +125,14 @@ class CheckBlockFinder(BaseBlockfinderTest):
         self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
         self.database_cache.commit_and_close_database()
 
+
+    def test_db_version(self):
+        """ test the handling of the db version information of the database cache. """
+        self.database_cache.connect_to_database()
+        self.assertEqual(self.database_cache.get_db_version(), None)
+        self.database_cache.set_db_version()
+        self.assertEqual(self.database_cache.get_db_version(), self.database_cache.db_version)
+
 if __name__ == '__main__':
     for test_class in [CheckReverseLookup, CheckBlockFinder]:
         unittest.TextTestRunner(verbosity=2).run(unittest.makeSuite(test_class))
