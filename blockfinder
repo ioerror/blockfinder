@@ -10,7 +10,7 @@ import sys
 import sqlite3
 import hashlib
 import gzip
-import socket
+import ipaddr
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
@@ -27,45 +27,6 @@ try:
     from future import antigravity
 except ImportError:
     antigravity = None
-
-try:
-    import IPy
-except ImportError:
-    IPy = None
-
-try:
-    import ipaddr as Ipaddr
-except ImportError:
-    Ipaddr = None
-
-def ip_address_to_dec(ip_addr):
-    octets = ip_addr.split('.')
-    return long(''.join(["%02X" % long(octet) for octet in octets]), 16)
-
-def return_first_ip_and_number_in_inetnum(line):
-    start_ip = line.split("-")[0].strip()
-    end_ip = line.split("-")[1].strip()
-    num_ips = 1 + (ip_address_to_dec(end_ip) - \
-            ip_address_to_dec(start_ip))
-    return start_ip, num_ips
-
-def ipv4_address_valid(ip_addr):
-    ipv4arr = ip_addr.split('.')
-    if len(ipv4arr) == 4:
-        for items in ipv4arr:
-            if int(items) > 255:
-                return False
-        return True
-    else:
-        return False
-
-def calculate_ipv4_subnet(host_count):
-    if host_count <= 1:
-        return 32
-    return 34 - len(bin(host_count - 1))
-
-class BlockFinderError(Exception):
-    pass
 
 class DatabaseCache:
     def __init__(self, cache_dir, verbose=False):
@@ -132,15 +93,11 @@ class DatabaseCache:
         result = []
         for row in self.cursor:
             if request == "ipv4":
-                if Ipaddr:
-                    first = Ipaddr.IPv4Address(str(row[0]))
-                    last = Ipaddr.IPv4Address(int(first) + int(row[1]) \
-                            - 1)
-                    result += [str(x) for x in \
-                            Ipaddr.summarize_address_range(first, last)]
-                else:
-                    result.append(str(row[0]) + "/" + \
-                            str(calculate_ipv4_subnet(int(row[1]))))
+                start_ipaddr = ipaddr.IPv4Address(str(row[0]))
+                end_ipaddr = start_ipaddr + int(row[1]) - 1
+                result += [str(x) for x in \
+                        ipaddr.summarize_address_range( \
+                        start_ipaddr, end_ipaddr)]
             elif request == "ipv6":
                 result.append(str(row[0]) + "/" + str(int(row[1])))
             else:
@@ -180,9 +137,12 @@ class DatabaseCache:
                        'WHERE start LIKE ? AND type = 4')
                 self.cursor.execute(sql, (ipv4arr[0] + ".%",))
             row = self.cursor.fetchone()
-        while (row is not None):
-            if (ip_address_to_dec(row[1]) <= ip_address_to_dec(ip_addr) \
-                    < (ip_address_to_dec(row[1]) + row[2])):
+        lookup_ipaddr = ipaddr.IPv4Address(ip_addr)
+        while row is not None:
+            start_ipaddr = ipaddr.IPv4Address(str(row[1]))
+            end_ipaddr = start_ipaddr + int(row[2]) - 1
+            if start_ipaddr <= lookup_ipaddr and \
+                    lookup_ipaddr <= end_ipaddr:
                 return row[0]
             row = self.cursor.fetchone()
 
@@ -209,14 +169,11 @@ class DatabaseCache:
             sql = ('SELECT cc, start, value FROM lir_record '
                    'WHERE type = 6 AND start LIKE ?')
             self.cursor.execute(sql, (ip_query,))
+        lookup_ipaddr = ipaddr.IPv6Address(ip_addr)
         for row in self.cursor:
-            try:
-                if IPy and ip_addr in IPy.IP(row[1] + "/" + str(row[2])):
-                    return row[0]
-            except ValueError, e:
-                if self.verbose:
-                    print e
-                pass
+            network = ipaddr.IPv6Network(row[1] + "/" + str(row[2]))
+            if lookup_ipaddr in network:
+                return row[0]
 
     def create_or_replace_lir_table_in_db(self):
         sql = 'DROP TABLE IF EXISTS lir_record'
@@ -479,9 +436,12 @@ class DownloaderParser:
             elif not entry and "inetnum:" in line:
                 try:
                     line = line.replace("inetnum:", "").strip()
-                    start_ip, num_ips = \
-                            return_first_ip_and_number_in_inetnum(line)
-                    block = [start_ip, num_ips]
+                    start_addr = line.split("-")[0].strip()
+                    end_addr = line.split("-")[1].strip()
+                    start_num = int(ipaddr.IPv4Address(start_addr))
+                    end_num = int(ipaddr.IPv4Address(end_addr))
+                    num_ips = end_num - start_num + 1
+                    block = [start_addr, num_ips]
                     entry = True
                     version = "4"
                 except Exception, e:
@@ -583,28 +543,23 @@ class Lookup:
         for i in ["RIR", "LIR"]:
             ip_query = ip_addr.split(":")[0] + ":" + \
                     ip_addr.split(":")[1] + "%"
-            result = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
+            cc = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
                     ip_query, i)
-            if result:
-                print i, "Country Name:", \
-                        self.get_name_from_country_code(result)
+            if cc:
+                print i, "country code:", cc
+                cn = self.get_name_from_country_code(cc)
+                if cn:
+                    print i, "country name:", cn
             else:
                 ip_query = ip_addr.split(":")[0] + ":%"
-                result = self.database_cache.rir_or_lir_lookup_ipv6( \
-                        ip_addr, ip_query, i)
-                if result:
-                    print i, "Country Name:", \
-                            self.get_name_from_country_code(result)
+                cc = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
+                        ip_query, i)
+                print i, "country code:", cc
+                cn = self.get_name_from_country_code(cc)
+                if cn:
+                    print i, "country name:", cn
 
-    def lookup_ip_address(self, ip_addr):
-        """ Return the country code and name for a given ip address.
-            Attempts to use GeoIP if available. """
-        ip_addr = socket.getaddrinfo(ip_addr, 80)[0][4][0]
-        if IPy and IPy.IP(ip_addr).version() == 6:
-            self.database_cache.lookup_ipv6_address(ip_addr)
-            return
-        if not ipv4_address_valid(ip_addr):
-            raise BlockFinderError('Invalid ip address!')
+    def lookup_ipv4_address(self, ip_addr):
         print "Reverse lookup for: " + ip_addr
         if GeoIP:
             geoip_cc, geoip_cc_name = self.geoip_lookup(ip_addr)
@@ -630,6 +585,21 @@ class Lookup:
                         "GeoIP data.  The GeoIP data is likely closer " \
                         "to being correct due to sub-delegation issues " \
                         "with LIR databases."
+
+    def lookup_ip_address(self, ip_addr):
+        """ Return the country code and name for a given ip address.
+            Attempts to use GeoIP if available. """
+        try:
+            lookup_ipaddr = ipaddr.IPAddress(ip_addr)
+            if isinstance(lookup_ipaddr, ipaddr.IPv4Address):
+                self.lookup_ipv4_address(ip_addr)
+            elif isinstance(lookup_ipaddr, ipaddr.IPv6Address):
+                self.lookup_ipv6_address(ip_addr)
+            else:
+                print "Did not recognize '%s' as either IPv4 or IPv6 " \
+                        "address." % ip_addr
+        except ValueError, e:
+            print "'%s' is not a valid IP address." % ip_addr
 
     def asn_lookup(self, asn):
         asn_cc = self.database_cache.asn_lookup(asn)
