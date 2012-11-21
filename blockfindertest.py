@@ -5,6 +5,7 @@ import os
 import shutil
 from tempfile import mkdtemp
 import test_data
+import ipaddr
 
 
 class BlockFinderTestExtras:
@@ -19,23 +20,38 @@ class BlockFinderTestExtras:
     def create_new_test_cache_dir(self):
         self.downloader_parser.create_blockfinder_cache_dir()
         self.database_cache.connect_to_database()
-        self.database_cache.create_sql_database()
+        self.database_cache.set_db_version()
+        self.database_cache.create_assignments_table()
 
     def load_del_test_data(self):
+        self.database_cache.delete_assignments('rir')
         delegations = [test_data.return_sub_apnic_del()]
         rows = []
         for delegation in delegations:
             for entry in delegation:
-                registry = str(entry['registry'])
-                if not registry.isdigit() and str (entry['cc']) !="*":
-                    temp_row = [entry['registry'], entry['cc'], entry['start'], \
-                        entry['value'], entry['date'], entry['status'], entry['type']]
-                    rows.append(temp_row)
-        self.database_cache.insert_into_sql_database(rows)
+                source_name = str(entry['registry'])
+                country_code = str(entry['cc'])
+                if not source_name.isdigit() and country_code != "*":
+                    num_type = entry['type']
+                    if num_type == 'asn':
+                        start_num = end_num = int(entry['start'])
+                    elif num_type == 'ipv4':
+                        start_num = int(ipaddr.IPAddress(entry['start']))
+                        end_num = start_num + long(entry['value']) - 1
+                    elif num_type == 'ipv6':
+                        network_str = entry['start'] + '/' + \
+                                entry['value']
+                        network_ipaddr = ipaddr.IPv6Network(network_str)
+                        start_num = int(network_ipaddr.network)
+                        end_num = int(network_ipaddr.broadcast)
+                    self.database_cache.insert_assignment(start_num, \
+                            end_num, num_type, country_code, 'rir', \
+                            source_name)
+        self.database_cache.commit_changes()
 
     def load_lir_test_data(self):
         self.downloader_parser.update_lir_delegation_cache("https://github.com/downloads/d1b/blockfinder/tiny_lir_data_for_test.gz")
-        self.database_cache.create_or_replace_lir_table_in_db()
+        self.database_cache.delete_assignments('lir')
         self.downloader_parser.extract_info_from_lir_file_and_insert_into_sqlite("tiny_lir_data_for_test")
 
     def copy_country_code_txt(self):
@@ -75,37 +91,48 @@ class CheckReverseLookup(BaseBlockfinderTest):
     def tearDown(self):
         self.extra_block_test_f.clean_up()
 
-    def reverse_lookup_cc_matcher(self, method, values):
+    def reverse_lookup_cc_matcher(self, num_type, values):
         self.database_cache.connect_to_database()
         self.downloader_parser.download_country_code_file()
-        for value, cc in values:
-            result = method(value)
+        for address, cc in values:
+            if num_type == 'ipv4':
+                value = int(ipaddr.IPv4Address(address))
+            else:
+                value = int(address)
+            result = self.database_cache.fetch_country_code(num_type, \
+                    'rir', value)
             self.assertEqual(result, cc)
 
     def test_rir_lookup(self):
-        method = self.database_cache.rir_lookup
-        self.reverse_lookup_cc_matcher(method, self.rirValues)
+        self.reverse_lookup_cc_matcher('ipv4', self.rirValues)
 
     def test_asn_lookup(self):
-        method = self.database_cache.asn_lookup
-        self.reverse_lookup_cc_matcher(method, self.asnValues)
+        self.reverse_lookup_cc_matcher('asn', self.asnValues)
 
 class CheckBlockFinder(BaseBlockfinderTest):
     # You can add known blocks to the tuple as a list
     # they will be looked up and checked
-    known_ipv4_Results = ( ('mm', ['203.81.160.0/20', '203.81.64.0/19']),
-                             ('kp', ['175.45.176.0/22']))
+    known_ipv4_Results = (('MM', ['203.81.64.0/19', '203.81.160.0/20']), \
+                          ('KP', ['175.45.176.0/22']))
+    known_ipv6_Results = ['2001:200::/35', '2001:200:2000::/35', \
+                          '2001:200:4000::/34', '2001:200:8000::/33']
 
     def test_ipv4_bf(self):
         self.database_cache.connect_to_database()
         for cc, values in self.known_ipv4_Results:
-            result = self.database_cache.use_sql_database("ipv4", cc.upper())
-            self.assertEqual(result, values)
+            expected = [(int(ipaddr.IPv4Network(network_str).network), \
+                    int(ipaddr.IPv4Network(network_str).broadcast)) \
+                    for network_str in values]
+            result = self.database_cache.fetch_assignments('ipv4', cc)
+            self.assertEqual(result, expected)
         self.database_cache.commit_and_close_database()
+
     def test_ipv6_bf(self):
         self.database_cache.connect_to_database()
-        expected = ['2001:200:2000::/35', '2001:200:4000::/34', '2001:200:8000::/33', '2001:200::/35']
-        result = self.database_cache.use_sql_database("ipv6", "JP")
+        expected = [(int(ipaddr.IPv6Network(network_str).network), \
+                int(ipaddr.IPv6Network(network_str).broadcast)) \
+                for network_str in self.known_ipv6_Results]
+        result = self.database_cache.fetch_assignments('ipv6', 'JP')
         self.assertEqual(result, expected)
         self.database_cache.commit_and_close_database()
 
@@ -115,21 +142,26 @@ class CheckBlockFinder(BaseBlockfinderTest):
         self.database_cache.connect_to_database()
         self.extra_block_test_f.load_lir_test_data()
         self.downloader_parser.download_country_code_file()
-        self.assertEqual(self.database_cache._rir_or_lir_lookup_ipv4("80.16.151.184", "LIR"), "IT")
-        self.assertEqual(self.database_cache._rir_or_lir_lookup_ipv4("80.16.151.180", "LIR"), "IT")
-        self.assertEqual(self.database_cache._rir_or_lir_lookup_ipv4("213.95.6.32", "LIR"), "DE")
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4', \
+                'lir', int(ipaddr.IPv4Address('80.16.151.184'))), 'IT')
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4', \
+                'lir', int(ipaddr.IPv4Address('80.16.151.180'))), 'IT')
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4', \
+                'lir', int(ipaddr.IPv4Address('213.95.6.32'))), 'DE')
 
         """ ipv6 """
-        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:0658:021A::", "2001%", "LIR"), u"DE")
-        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:67c:320::", "2001%", "LIR"), u"DE")
-        self.assertEqual(self.database_cache.rir_or_lir_lookup_ipv6("2001:670:0085::", "2001%", "LIR"), u"FI")
+        self.assertEqual(self.database_cache.fetch_country_code('ipv6', \
+                'lir', int(ipaddr.IPv6Address('2001:0658:021A::'))), 'DE')
+        self.assertEqual(self.database_cache.fetch_country_code('ipv6', \
+                'lir', int(ipaddr.IPv6Address('2001:67c:320::'))), 'DE')
+        self.assertEqual(self.database_cache.fetch_country_code('ipv6', \
+                'lir', int(ipaddr.IPv6Address('2001:670:0085::'))), 'FI')
         self.database_cache.commit_and_close_database()
 
 
     def test_db_version(self):
         """ test the handling of the db version information of the database cache. """
         self.database_cache.connect_to_database()
-        self.assertEqual(self.database_cache.get_db_version(), None)
         self.database_cache.set_db_version()
         self.assertEqual(self.database_cache.get_db_version(), self.database_cache.db_version)
 
