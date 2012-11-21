@@ -11,7 +11,7 @@ import sqlite3
 import hashlib
 import gzip
 import ipaddr
-from ConfigParser import SafeConfigParser
+import ConfigParser
 
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
@@ -36,16 +36,36 @@ class DatabaseCache:
         self.verbose = verbose
         self.cursor = None
         self.conn = None
+        self.db_version = "0.0.2"
+        self.db_path = os.path.join(self.cache_dir + "sqlitedb")
 
-        self.db_version = "0.0.1"
+    def erase_database(self):
+        """ Erase the database file. """
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
 
     def connect_to_database(self):
+        """ Connect to the database cache, possibly after creating it if
+            it doesn't exist yet, or after making sure an existing
+            database cache has the correct version.  Return True if a
+            connection could be established, False otherwise. """
         if not os.path.exists(self.cache_dir):
             if self.verbose:
                 print "Initializing the cache directory..."
             os.mkdir(self.cache_dir)
-        self.conn = sqlite3.connect(self.cache_dir + "sqlitedb")
+        if os.path.exists(self.db_path):
+            cache_version = self.get_db_version()
+            if not cache_version:
+                cache_version = "0.0.1"
+            if cache_version != self.db_version:
+                print "The existing database cache uses version %s, " \
+                        "not the expected %s." % (cache_version, \
+                        self.db_version)
+                return False
+        self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
+        self.create_assignments_table()
+        return True
 
     def __get_default_config_file_obj(self):
         open_flags = 'rb+'
@@ -55,22 +75,20 @@ class DatabaseCache:
         return open(file_path, open_flags)
 
     def _get_db_config(self, file_obj=None):
-        """ Returns the database configuration object from the provided
-            file_obj if it is provided, otherwise uses the default database
-            configuration file.
-        """
+        """ Return the database configuration object from the provided
+            file_obj if provided, otherwise from the default database
+            configuration file. """
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
-        config = SafeConfigParser()
+        config = ConfigParser.SafeConfigParser()
         config.readfp(file_obj)
         file_obj.close()
         return config
 
     def set_db_version(self, file_obj=None):
-        """ set the database version """
+        """ Set the database version string in the config file. """
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
-
         config = self._get_db_config()
         if not config.has_section('db'):
             config.add_section('db')
@@ -79,7 +97,8 @@ class DatabaseCache:
         file_obj.close()
 
     def get_db_version(self):
-        """ Returns the database version """
+        """ Read and return the database version string from the config
+            file. """
         config = self._get_db_config()
         if not config.has_section('db'):
             return None
@@ -89,147 +108,78 @@ class DatabaseCache:
         self.conn.commit()
         self.cursor.close()
 
-    def create_sql_database(self):
-        """ Creates a new sqlite database.
-            Existing delegation entries are dropped prior to inserting
-            'newer' delegations. """
-        sql = ('DROP TABLE IF EXISTS delegations; '
-               'CREATE TABLE delegations(registry TEXT, cc TEXT, '
-               'start TEXT, value INTEGER, date TEXT, status TEXT, '
-               'type TEXT); '
-               'CREATE TABLE IF NOT EXISTS lir_record(cc TEXT, '
-               'start TEXT, value INTEGER, type INTEGER)')
-        self.cursor.executescript(sql)
-        self.conn.commit()
-
-    def insert_into_sql_database(self, rows):
-        """ Inserts delegation information into the sqlite database. """
-        sql = ('INSERT INTO delegations (registry, cc, start, value, '
-               'date, status, type) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        self.cursor.executemany(sql, rows)
-        self.conn.commit()
-
-    def _get_total_delegations_from_db(self):
-        """ Returns the total count of the number of entries in the ipv4,
-            ipv6 and asn table. """
-        sql = 'SELECT COUNT(*) FROM delegations'
+    def create_assignments_table(self):
+        """ Create the assignments table that stores all assignments from
+            IPv4/IPv6/ASN to country code.  Blocks are stored as start hex
+            to end hex, because SQLite's INTEGER type only holds up to 63
+            unsigned bits, which is not enough to store a /64 IPv6 block.
+            Hex strings have leading zeros, with IPv6 addresses being 32
+            hex characters long and IPv4 addresses and ASN being 8 hex
+            characters long. """
+        sql = ('CREATE TABLE IF NOT EXISTS assignments(start_hex TEXT, '
+               'end_hex TEXT, num_type TEXT, country_code TEXT, '
+               'source_type TEXT, source_name TEXT)')
         self.cursor.execute(sql)
-        return int(self.cursor.fetchone()[0])
+        self.conn.commit()
 
-    def _get_possible_match_entries(self, cc):
-        """ Get the count of 'possible' matching delegation entries. """
-        sql = 'SELECT COUNT(*) FROM delegations WHERE cc = ?'
-        self.cursor.execute(sql, cc)
-        return int(self.cursor.fetchone()[0])
+    def delete_assignments(self, source_type):
+        """ Delete all assignments from the database cache matching a
+            given source type ("rir", "lir", etc.). """
+        sql = 'DELETE FROM assignments WHERE source_type = ?'
+        self.cursor.execute(sql, (source_type, ))
+        self.conn.commit()
 
-    def use_sql_database(self, request, cc):
-        """ Use the sqlite database that is created after fetching
-            delegations to output information for a given request. """
-        if self.verbose:
-            print "We have %d entries in our delegation cache." % \
-                    self._get_total_delegations_from_db()
-        sql = ('SELECT start, value FROM delegations WHERE type = ? '
-               'AND cc = ?')
-        cc = (cc,)
-        self.cursor.execute(sql, (request, cc[0]))
+    def insert_assignment(self, start_num, end_num, num_type, \
+            country_code, source_type, source_name):
+        """ Insert an assignment into the database cache, without
+            commiting after the insertion. """
+        sql = ('INSERT INTO assignments (start_hex, end_hex, num_type, '
+               'country_code, source_type, source_name) '
+               'VALUES (?, ?, ?, ?, ?, ?)')
+        if num_type == 'ipv6':
+            start_hex = '%032x' % start_num
+            end_hex = '%032x' % end_num
+        else:
+            start_hex = '%08x' % start_num
+            end_hex = '%08x' % end_num
+        self.cursor.execute(sql, (start_hex, end_hex, num_type,
+                country_code, source_type, source_name))
+
+    def commit_changes(self):
+        """ Commit changes, e.g., after inserting assignments into the
+            database cache. """
+        self.conn.commit()
+
+    def fetch_assignments(self, num_type, country_code):
+        """ Fetch all assignments from the database cache matching the
+            given number type ("asn", "ipv4", or "ipv6") and country code.
+            The result is a sorted list of tuples containing (start_num,
+            end_num). """
+        sql = ('SELECT start_hex, end_hex FROM assignments '
+               'WHERE num_type = ? AND country_code = ? '
+               'ORDER BY start_hex')
+        self.cursor.execute(sql, (num_type, country_code))
         result = []
         for row in self.cursor:
-            if request == "ipv4":
-                start_ipaddr = ipaddr.IPv4Address(str(row[0]))
-                end_ipaddr = start_ipaddr + int(row[1]) - 1
-                result += [str(x) for x in \
-                        ipaddr.summarize_address_range( \
-                        start_ipaddr, end_ipaddr)]
-            elif request == "ipv6":
-                result.append(str(row[0]) + "/" + str(int(row[1])))
-            else:
-                result.append(str(int(row[0])))
-        result.sort()
-        if self.verbose:
-            result.append("We found %d possible entries in our "
-                  "delegation cache." % \
-                  self._get_possible_match_entries(cc))
-            sql = ('SELECT COUNT(*) FROM delegations WHERE cc = ? '
-                   'AND type = ?')
-            self.cursor.execute(sql, (cc[0], request))
-            result.append("We found %d matching entries in our "
-                    "delegation cache." % int(self.cursor.fetchone()[0]))
+            result.append((long(row[0], 16), long(row[1], 16)))
         return result
 
-    def _rir_or_lir_lookup_ipv4(self, ip_addr, lookup_type):
-        ipv4arr = ip_addr.split('.')
-        if lookup_type == 'rir':
-            sql = ('SELECT cc, start, value FROM delegations '
-                   'WHERE type = "ipv4" AND start LIKE ?')
-            self.cursor.execute(sql,
-                    (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
+    def fetch_country_code(self, num_type, source_type, lookup_num):
+        """ Fetch the country code from the database cache that is
+            assigned to the given number (e.g., IPv4 address in decimal
+            notation), number type (e.g., "ipv4"), and source type (e.g.,
+            "rir"). """
+        sql = ('SELECT country_code FROM assignments WHERE num_type = ? '
+               'AND source_type = ? AND start_hex <= ? AND end_hex >= ?')
+        if num_type == 'ipv6':
+            lookup_hex = '%032x' % long(lookup_num)
         else:
-            sql = ('SELECT cc, start, value FROM lir_record '
-                   'WHERE start LIKE ? AND type = 4')
-            self.cursor.execute(sql,
-                    (ipv4arr[0] + "." + ipv4arr[1] + ".%",))
-        row = self.cursor.fetchone()
-        if row is None:
-            if lookup_type == "rir":
-                sql = ('SELECT cc, start, value FROM delegations '
-                       'WHERE type = "ipv4" AND start LIKE ?')
-                self.cursor.execute(sql, (ipv4arr[0] + ".%",))
-            else:
-                sql = ('SELECT cc, start, value FROM lir_record '
-                       'WHERE start LIKE ? AND type = 4')
-                self.cursor.execute(sql, (ipv4arr[0] + ".%",))
-            row = self.cursor.fetchone()
-        lookup_ipaddr = ipaddr.IPv4Address(ip_addr)
-        while row is not None:
-            start_ipaddr = ipaddr.IPv4Address(str(row[1]))
-            end_ipaddr = start_ipaddr + int(row[2]) - 1
-            if start_ipaddr <= lookup_ipaddr and \
-                    lookup_ipaddr <= end_ipaddr:
-                return row[0]
-            row = self.cursor.fetchone()
-
-    def rir_lookup(self, ip_addr):
-        return self._rir_or_lir_lookup_ipv4(ip_addr, "rir")
-
-    def lir_lookup(self, ip_addr):
-        return self._rir_or_lir_lookup_ipv4(ip_addr, "lir")
-
-    def asn_lookup(self, asn):
-        sql = ('SELECT cc FROM delegations WHERE type = "asn" AND '
-               'start LIKE ?')
-        self.cursor.execute(sql, (asn,))
+            lookup_hex = '%08x' % long(lookup_num)
+        self.cursor.execute(sql, (num_type, source_type, lookup_hex, \
+                lookup_hex))
         row = self.cursor.fetchone()
         if row:
             return row[0]
-
-    def rir_or_lir_lookup_ipv6(self, ip_addr, ip_query, type_q):
-        if type_q == "RIR":
-            sql = ('SELECT cc, start, value FROM delegations '
-                   'WHERE type = "ipv6" AND start like ?')
-            self.cursor.execute(sql, (ip_query,))
-        else:
-            sql = ('SELECT cc, start, value FROM lir_record '
-                   'WHERE type = 6 AND start LIKE ?')
-            self.cursor.execute(sql, (ip_query,))
-        lookup_ipaddr = ipaddr.IPv6Address(ip_addr)
-        for row in self.cursor:
-            network = ipaddr.IPv6Network(row[1] + "/" + str(row[2]))
-            if lookup_ipaddr in network:
-                return row[0]
-
-    def create_or_replace_lir_table_in_db(self):
-        sql = 'DROP TABLE IF EXISTS lir_record'
-        self.cursor.execute(sql)
-        sql = ('CREATE TABLE IF NOT EXISTS lir_record(cc TEXT, '
-               'start TEXT, value INTEGER, type INTEGER)')
-        self.cursor.execute(sql)
-        self.conn.commit()
-
-    def insert_lir_delegation(self, data):
-        sql = ('INSERT INTO lir_record (cc, start, value, type) '
-               'VALUES (?, ?, ?, ?)')
-        self.cursor.execute(sql, data)
-        self.conn.commit()
 
 class DownloaderParser:
     def __init__(self, cache_dir, database_cache, user_agent, \
@@ -466,56 +416,69 @@ class DownloaderParser:
                 text_content)
 
     def extract_info_from_lir_file_and_insert_into_sqlite(self, filename):
-        block = []
-        country = ""
+        start_num = 0
+        end_num = 0
+        country_code = ""
         entry = False
-        version = ""
+        num_type = ""
         for line in open(self.cache_dir + filename, "r"):
             line = line.replace("\n", "")
             if line == "":
                 entry = False
-                country, block, version = "", [], ""
+                start_num, end_num, country_code, num_type = 0, 0, "", ""
             elif not entry and "inetnum:" in line:
                 try:
                     line = line.replace("inetnum:", "").strip()
-                    start_addr = line.split("-")[0].strip()
-                    end_addr = line.split("-")[1].strip()
-                    start_num = int(ipaddr.IPv4Address(start_addr))
-                    end_num = int(ipaddr.IPv4Address(end_addr))
-                    num_ips = end_num - start_num + 1
-                    block = [start_addr, num_ips]
+                    start_str = line.split("-")[0].strip()
+                    end_str = line.split("-")[1].strip()
+                    start_num = int(ipaddr.IPv4Address(start_str))
+                    end_num = int(ipaddr.IPv4Address(end_str))
                     entry = True
-                    version = "4"
+                    num_type = 'ipv4'
                 except Exception, e:
                     if self.verbose:
                         print repr(e), line
             elif not entry and "inet6num:" in line:
                 try:
-                    block = line.replace("inet6num:", \
-                            "").strip().split("/")
+                    network_str = line.replace("inet6num:", "").strip()
+                    network_ipaddr = ipaddr.IPv6Network(network_str)
+                    start_num = int(network_ipaddr.network)
+                    end_num = int(network_ipaddr.broadcast)
                     entry = True
-                    version = "6"
+                    num_type = 'ipv6'
                 except Exception, e:
                     if self.verbose:
                         print repr(e), line
             elif entry and "country:" in line:
-                country = line.replace("country:", "").strip()
-                data = (country, block[0], block[1], version)
-                self.database_cache.insert_lir_delegation(data)
+                country_code = line.replace("country:", "").strip()
+                self.database_cache.insert_assignment(start_num, \
+                        end_num, num_type, country_code, 'lir', 'ripencc')
+        self.database_cache.commit_changes()
 
     def create_db_and_insert_delegation_into_db(self, delegation_urls):
-        self.database_cache.create_sql_database()
+        self.database_cache.delete_assignments('rir')
         delegations = self.load_all_delegations(delegation_urls)
-        rows = []
         for delegation in delegations:
             for entry in delegation:
-                registry = str(entry['registry'])
-                if not registry.isdigit() and str(entry['cc']) != "*":
-                    temp_row = [entry['registry'], entry['cc'], \
-                            entry['start'], entry['value'], \
-                            entry['date'], entry['status'], entry['type']]
-                    rows.append(temp_row)
-        self.database_cache.insert_into_sql_database(rows)
+                source_name = str(entry['registry'])
+                country_code = str(entry['cc'])
+                if not source_name.isdigit() and country_code != "*":
+                    num_type = entry['type']
+                    if num_type == 'asn':
+                        start_num = end_num = int(entry['start'])
+                    elif num_type == 'ipv4':
+                        start_num = int(ipaddr.IPAddress(entry['start']))
+                        end_num = start_num + long(entry['value']) - 1
+                    elif num_type == 'ipv6':
+                        network_str = entry['start'] + '/' + \
+                                entry['value']
+                        network_ipaddr = ipaddr.IPv6Network(network_str)
+                        start_num = int(network_ipaddr.network)
+                        end_num = int(network_ipaddr.broadcast)
+                    self.database_cache.insert_assignment(start_num, \
+                            end_num, num_type, country_code, 'rir', \
+                            source_name)
+        self.database_cache.commit_changes()
 
 class Lookup:
     def __init__(self, cache_dir, database_cache, verbose=False):
@@ -579,35 +542,25 @@ class Lookup:
         cc_name = gi.country_name_by_addr(ip_addr)
         return cc, cc_name
 
-    def lookup_ipv6_address(self, ip_addr):
-        print "Reverse lookup for: " + ip_addr
-        split_addr = ip_addr.split(":")
-        for i in ["RIR", "LIR"]:
-            ip_query = ip_addr.split(":")[0] + ":" + \
-                    ip_addr.split(":")[1] + "%"
-            cc = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
-                    ip_query, i)
+    def lookup_ipv6_address(self, lookup_ipaddr):
+        print "Reverse lookup for: " + str(lookup_ipaddr)
+        for source_type in ['rir', 'lir']:
+            cc = self.database_cache.fetch_country_code('ipv6', \
+                    source_type, int(lookup_ipaddr))
             if cc:
-                print i, "country code:", cc
+                print source_type.upper(), "country code:", cc
                 cn = self.get_name_from_country_code(cc)
                 if cn:
-                    print i, "country name:", cn
-            else:
-                ip_query = ip_addr.split(":")[0] + ":%"
-                cc = self.database_cache.rir_or_lir_lookup_ipv6(ip_addr, \
-                        ip_query, i)
-                print i, "country code:", cc
-                cn = self.get_name_from_country_code(cc)
-                if cn:
-                    print i, "country name:", cn
+                    print source_type.upper(), "country name:", cn
 
-    def lookup_ipv4_address(self, ip_addr):
-        print "Reverse lookup for: " + ip_addr
+    def lookup_ipv4_address(self, lookup_ipaddr):
+        print "Reverse lookup for: " + str(lookup_ipaddr)
         if GeoIP:
-            geoip_cc, geoip_cc_name = self.geoip_lookup(ip_addr)
+            geoip_cc, geoip_cc_name = self.geoip_lookup(str(lookup_ipaddr))
             print "GeoIP country code: " + str(geoip_cc)
             print "GeoIP country name: " + str(geoip_cc_name)
-        rir_cc = self.database_cache.rir_lookup(ip_addr)
+        rir_cc = self.database_cache.fetch_country_code('ipv4', 'rir', \
+                int(lookup_ipaddr))
         if rir_cc:
             print 'RIR country code:', rir_cc
             rir_cn = self.get_name_from_country_code(rir_cc)
@@ -615,7 +568,8 @@ class Lookup:
                 print 'RIR country:', rir_cn
         else:
             print 'Not found in RIR db'
-        lir_cc = self.database_cache.lir_lookup(ip_addr)
+        lir_cc = self.database_cache.fetch_country_code('ipv4', 'lir', \
+                int(lookup_ipaddr))
         if lir_cc:
             print 'LIR country code:', lir_cc
             lir_cn = self.get_name_from_country_code(lir_cc)
@@ -628,23 +582,23 @@ class Lookup:
                         "to being correct due to sub-delegation issues " \
                         "with LIR databases."
 
-    def lookup_ip_address(self, ip_addr):
+    def lookup_ip_address(self, lookup_str):
         """ Return the country code and name for a given ip address.
             Attempts to use GeoIP if available. """
         try:
-            lookup_ipaddr = ipaddr.IPAddress(ip_addr)
+            lookup_ipaddr = ipaddr.IPAddress(lookup_str)
             if isinstance(lookup_ipaddr, ipaddr.IPv4Address):
-                self.lookup_ipv4_address(ip_addr)
+                self.lookup_ipv4_address(lookup_ipaddr)
             elif isinstance(lookup_ipaddr, ipaddr.IPv6Address):
-                self.lookup_ipv6_address(ip_addr)
+                self.lookup_ipv6_address(lookup_ipaddr)
             else:
                 print "Did not recognize '%s' as either IPv4 or IPv6 " \
-                        "address." % ip_addr
+                        "address." % lookup_str
         except ValueError, e:
-            print "'%s' is not a valid IP address." % ip_addr
+            print "'%s' is not a valid IP address." % lookup_str
 
     def asn_lookup(self, asn):
-        asn_cc = self.database_cache.asn_lookup(asn)
+        asn_cc = self.database_cache.fetch_country_code('asn', 'rir', asn)
         if asn_cc:
             print "AS country code: %s" % asn_cc
             asn_cn = self.get_name_from_country_code(asn_cc)
@@ -654,7 +608,18 @@ class Lookup:
             print "AS%s not found!" % asn
 
     def fetch_rir_blocks_by_country(self, request, country):
-        return self.database_cache.use_sql_database(request, country)
+        result = []
+        for (start_num, end_num) in \
+                self.database_cache.fetch_assignments(request, country):
+            if request == "ipv4" or request == "ipv6":
+                start_ipaddr = ipaddr.IPAddress(start_num)
+                end_ipaddr = ipaddr.IPAddress(end_num)
+                result += [str(x) for x in \
+                        ipaddr.summarize_address_range( \
+                        start_ipaddr, end_ipaddr)]
+            else:
+                result.append(str(start_num))
+        return result
 
 def main():
     """ Where the magic starts. """
@@ -691,6 +656,8 @@ def main():
                   "take up to 5 minutes"))
     group.add_option("-o", "--download-cc", action="store_true",
             dest="download_cc", help="download country codes file")
+    group.add_option("-e", "--erase-cache", action="store_true",
+            dest="erase_cache", help="erase the local database cache")
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Lookup modes",
             "Pick at most one of these modes to look up data in the " \
@@ -718,7 +685,8 @@ def main():
     options_dict = vars(options)
     modes = 0
     for mode in ["init_del", "init_lir", "reload_del", "reload_lir",
-                 "download_cc", "ipv4", "ipv6", "asn", "cc", "cn"]:
+                 "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
+                 "cc", "cn"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -726,7 +694,15 @@ def main():
     elif modes == 0:
         parser.error("must provide 1 cache or lookup mode")
     database_cache = DatabaseCache(options.dir, options.verbose)
-    database_cache.connect_to_database()
+    if options.erase_cache:
+        database_cache.erase_database()
+        sys.exit(0)
+    if not database_cache.connect_to_database():
+        print "Could not connect to database."
+        print "You may need to erase it using -e and then reload it " \
+                "using -d/-z.  Exiting."
+        sys.exit(1)
+    database_cache.set_db_version()
     downloader_parser = DownloaderParser(options.dir, database_cache, \
             options.ua)
     lookup = Lookup(options.dir, database_cache)
@@ -786,7 +762,7 @@ def main():
             downloader_parser.update_lir_delegation_cache(lir_urls)
         print "Extracting and inserting information from the lir files " \
                 "can take up to 5 minutes"
-        database_cache.create_or_replace_lir_table_in_db()
+        self.database_cache.delete_assignments('lir')
         for fname in "ripe.db.inetnum ripe.db.inet6num".split():
             downloader_parser.extract_info_from_lir_file_and_insert_into_sqlite(fname)
     elif options.download_cc:
