@@ -11,6 +11,8 @@ import sqlite3
 import hashlib
 import gzip
 import ipaddr
+from ConfigParser import SafeConfigParser
+
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
@@ -35,6 +37,8 @@ class DatabaseCache:
         self.cursor = None
         self.conn = None
 
+        self.db_version = "0.0.1"
+
     def connect_to_database(self):
         if not os.path.exists(self.cache_dir):
             if self.verbose:
@@ -42,6 +46,44 @@ class DatabaseCache:
             os.mkdir(self.cache_dir)
         self.conn = sqlite3.connect(self.cache_dir + "sqlitedb")
         self.cursor = self.conn.cursor()
+
+    def __get_default_config_file_obj(self):
+        open_flags = 'rb+'
+        file_path = os.path.join(self.cache_dir, 'db.cfg')
+        if not os.path.exists(file_path):
+            open_flags = 'wb+'
+        return open(file_path, open_flags)
+
+    def _get_db_config(self, file_obj=None):
+        """ Returns the database configuration object from the provided
+            file_obj if it is provided, otherwise uses the default database
+            configuration file.
+        """
+        if file_obj is None:
+            file_obj = self.__get_default_config_file_obj()
+        config = SafeConfigParser()
+        config.readfp(file_obj)
+        file_obj.close()
+        return config
+
+    def set_db_version(self, file_obj=None):
+        """ set the database version """
+        if file_obj is None:
+            file_obj = self.__get_default_config_file_obj()
+
+        config = self._get_db_config()
+        if not config.has_section('db'):
+            config.add_section('db')
+        config.set('db', 'version', self.db_version)
+        config.write(file_obj)
+        file_obj.close()
+
+    def get_db_version(self):
+        """ Returns the database version """
+        config = self._get_db_config()
+        if not config.has_section('db'):
+            return None
+        return config.get('db', 'version')
 
     def commit_and_close_database(self):
         self.conn.commit()
