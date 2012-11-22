@@ -12,6 +12,7 @@ import hashlib
 import gzip
 import ipaddr
 import ConfigParser
+import zipfile
 
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
@@ -19,11 +20,6 @@ __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
 __version__ = '3.1415'
-
-try:
-    import GeoIP
-except ImportError:
-     GeoIP = None
 
 try:
     from future import antigravity
@@ -189,295 +185,281 @@ class DownloaderParser:
         self.user_agent = user_agent
         self.verbose = verbose
 
-    def update_progress_bar(self, percent_done, caption=""):
-        """Write a progress bar to the console"""
-        rows, columns = map(int, \
-                os.popen('stty size', 'r').read().split())
-        width = columns - 4 - len(caption)
-        sys.stdout.write("[%s>%s] %s\x1b[G" % (
-                "=" * int(percent_done*width),
-                "." * (width - int(percent_done * width)), caption))
-        sys.stdout.flush()
+    MAXMIND_URLS = """
+        http://geolite.maxmind.com/download/geoip/database/GeoIPCountryCSV.zip
+        http://geolite.maxmind.com/download/geoip/database/GeoIPv6.csv.gz
+    """
 
-    # XXX TODO:allow the use of a proxy
-    # Set up a proper Request object, set the user agent and if desired,
-    # a proxy
-    def fetch(self, url):
-        """ Fetch (with progress meter) and return the contents of a
-            url. """
-        req = urllib2.Request(url)
-        req.add_header('User-Agent', self.user_agent)
-        #req.set_proxy(host, type)
-        fetcher = urllib2.urlopen(req)
-        length_header = fetcher.headers.get("Content-Length")
-        if length_header == None:
-            """ The server did not provide a Content-Length header. """
-            length_header = -1
-        length = int(length_header)
-        print "Fetching ", str(round(float(length/1024),2)), " kilobytes"
-        ret = ""
-        t_start = time.time()
-        while True:
-            t_delta = time.time() - t_start
-            if t_delta == 0:
-                t_delta = 1
-            if length_header != -1:
-                self.update_progress_bar(float(len(ret)) / length,
-                    "%.2f K/s" % (len(ret) / 1024 / t_delta))
-            tmp = fetcher.read(1024)
-            if len(tmp) == 0:
-                if len(ret) != length and length_header != -1:
-                    raise Exception("Expected %s bytes, only received " \
-                            "%s" % (len(ret), length))
-                print ""
-                return ret
-            ret += tmp
+    RIR_URLS = """
+        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
+        ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
+        ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
+        ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
+        ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
+    """
 
-    def write_to_a_text_file(self, file_loc, data):
-        f = open(file_loc, 'w')
-        f.write(data)
-        f.close()
+    LIR_URLS = """
+        ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
+        ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
+    """
 
-    def extract_data_from_gzip_file(self, gzip_file_loc, \
-                extract_file_loc):
-        gzip_file = gzip.open(gzip_file_loc, 'rb')
-        gunzipped_file = open(extract_file_loc, 'w')
-        while True:
-            gunzipped_data = gzip_file.read(1024)
-            if gunzipped_data == "":
-                break
-            gunzipped_file.writelines(gunzipped_data)
-        gzip_file.close()
-        gunzipped_file.close()
+    COUNTRY_CODE_URL = "http://www.iso.org/iso/list-en1-semic-3.txt"
 
-    def read_data_from_binary_file(self, fname):
-        f = open(fname, 'rb')
-        data = f.read()
-        f.close()
-        return data
+    def download_maxmind_files(self):
+        """ Download all LIR delegation urls. """
+        for maxmind_url in self.MAXMIND_URLS.split():
+            self._download_to_cache_dir(maxmind_url)
 
-    def create_blockfinder_cache_dir(self):
+    def download_rir_files(self):
+        """ Download all RIR delegation files including md5 checksum. """
+        for rir_url in self.RIR_URLS.split():
+            rir_md5_url = rir_url + '.md5'
+            self._download_to_cache_dir(rir_url)
+            self._download_to_cache_dir(rir_md5_url)
+
+    def download_lir_files(self):
+        """ Download all LIR delegation urls. """
+        for lir_url in self.LIR_URLS.split():
+            self._download_to_cache_dir(lir_url)
+
+    def download_country_code_file(self):
+        """ Download and save the latest semicolon-separated open country
+            codes file. """
+        self._download_to_cache_dir(self.COUNTRY_CODE_URL)
+
+    def _download_to_cache_dir(self, url):
+        """ Fetch a resource (with progress bar) and store contents to the
+            local cache directory under the file name given in the URL. """
         if not os.path.exists(self.cache_dir):
             if self.verbose:
                 print "Initializing the cache directory..."
             os.mkdir(self.cache_dir)
+        filename = url.split('/')[-1]
+        req = urllib2.Request(url)
+        if self.user_agent:
+            req.add_header('User-Agent', self.user_agent)
+        # TODO Allow use of a proxy.
+        #req.set_proxy(host, type)
+        fetcher = urllib2.urlopen(req)
+        length_header = fetcher.headers.get("Content-Length")
+        expected_bytes = -1
+        if length_header:
+            expected_bytes = int(length_header)
+            print "Fetching %d kilobytes" % \
+                    round(float(expected_bytes / 1024), 2)
+        download_started = time.time()
+        output_file = open(os.path.join(self.cache_dir, filename), "wb")
+        received_bytes, seconds_elapsed = 0, 0
+        while True:
+            seconds_elapsed = time.time() - download_started
+            if expected_bytes >= 0:
+                self._update_progress_bar(received_bytes, expected_bytes,
+                        seconds_elapsed)
+            chunk = fetcher.read(1024)
+            if len(chunk) == 0:
+                if expected_bytes >= 0 and received_bytes != expected_bytes:
+                    print "Expected %s bytes, only received %s" % \
+                            (expected_bytes, received_bytes)
+                print ""
+                break
+            received_bytes += len(chunk)
+            output_file.write(chunk)
+        output_file.close()
 
-    def cache_delegation(self, delegation_url):
-        """ Attempt to cache the contents of a delegation url in our
-            cache dir. """
-        delegation = ""
-        print "Fetching " + delegation_url
-        delegation = self.fetch(delegation_url)
-        tmp = delegation_url.split('/')
-        delegation_file = str(self.cache_dir) + str(tmp[-1])
-        try:
-            self.write_to_a_text_file(delegation_file, delegation)
-            return True
-        except Exception, e:
-            print repr(e)
+    def _update_progress_bar(self, received_bytes, expected_bytes,
+            seconds_elapsed):
+        """ Write a progress bar to the console. """
+        rows, columns = map(int, os.popen('stty size', 'r').read().split())
+        if seconds_elapsed == 0:
+            seconds_elapsed = 1
+        percent_done = float(received_bytes) / float(expected_bytes)
+        caption = "%.2f K/s" % (received_bytes / 1024 / seconds_elapsed)
+        width = columns - 4 - len(caption)
+        sys.stdout.write("[%s>%s] %s\x1b[G" % (
+                "=" * int(percent_done * width),
+                "." * (width - int(percent_done * width)), caption))
+        sys.stdout.flush()
+
+    def check_rir_file_mtimes(self):
+        """ Return True if the mtime of any RIR file in our cache directory
+            is > 24 hours, False otherwise. """
+        if not os.path.exists(self.cache_dir):
             return False
-
-    def cache_is_dated(self, cached_files):
-        """ Returns True if the mtime of any files in cache dir is
-            > 24 hours. """
-        try:
-            os.stat(self.cache_dir)
-        except OSError, e:
-            print "\nDid you initialize the cache directory?\n"
-            raise e
-        for file in cached_files:
-            fstat = os.stat(self.cache_dir + file)
-            if (time.time() - fstat.st_mtime) > 86400:
-                return True
+        for rir_url in self.RIR_URLS.split():
+            rir_path = os.path.join(self.cache_dir,
+                    rir_url.split('/')[-1])
+            if os.path.exists(rir_path):
+                rir_stat = os.stat(rir_path)
+                if (time.time() - rir_stat.st_mtime) > 86400:
+                    return True
         return False
 
-    def get_md5_from_delegation_md5_file(self, delegation_file):
-        """ Returns the md5sum from the delegation md5 file
-            if it doesn't exist it returns an empty string"""
-        checksum = ""
-        try:
-            f = open(self.cache_dir + delegation_file + ".md5", "r")
-            checksum = f.read()
-            f.close()
-            if "=" in checksum:
-                pos = checksum.find("=") +2
-                checksum = str(checksum[pos:-1])
-        except Exception, e:
-            print repr(e)
-        return checksum
+    def verify_rir_files(self):
+        """ Compute md5 checksums of all RIR files, compare them to the
+            provided .md5 files, and return True if the two checksums match,
+            or False otherwise. """
+        for rir_url in self.RIR_URLS.split():
+            rir_path = os.path.join(self.cache_dir,
+                    rir_url.split('/')[-1])
+            rir_md5_path = os.path.join(self.cache_dir,
+                    rir_url.split('/')[-1] + '.md5')
+            if not os.path.exists(rir_md5_path) or \
+                    not os.path.exists(rir_path):
+                continue
+            rir_md5_file = open(rir_md5_path, 'r')
+            expected_checksum = rir_md5_file.read()
+            rir_md5_file.close()
+            if "=" in expected_checksum:
+                expected_checksum = expected_checksum.split("=")[-1].strip()
+            if expected_checksum == "":
+                continue
+            computed_checksum = ""
+            rir_file = open(rir_path, 'rb')
+            rir_data = rir_file.read()
+            rir_file.close()
+            computed_checksum = str(hashlib.md5(rir_data).hexdigest())
+            if expected_checksum != computed_checksum:
+                print "The computed md5 checksum of %s, %s, does *not* " \
+                        "match the provided checksum %s!" % \
+                        (rir_path, computed_checksum, expected_checksum)
 
-    def verify_delegation_file(self, delegation_file):
-        """ Compares the delegation file md5sum to that of the provided
-            md5sum, returns True if they match otherwise returns
-            False. """
-        checksum = ""
-        checksum_of_file = ""
-        try:
-            data = self.read_data_from_binary_file(self.cache_dir + \
-                    delegation_file)
-            checksum_of_file = str(hashlib.md5(data).hexdigest())
-        except Exception, e:
-            print repr(e)
-        checksum = self.get_md5_from_delegation_md5_file(delegation_file)
-        if checksum != checksum_of_file:
-            return False
-        if checksum == checksum_of_file and checksum != "":
-            return True
-        return False
+    def parse_maxmind_files(self, maxmind_urls=None):
+        """ Parse locally cached MaxMind files and insert assignments to the
+            local database cache, overwriting any existing MaxMind
+            assignments. """
+        if not maxmind_urls:
+            maxmind_urls = self.MAXMIND_URLS.split()
+        self.database_cache.delete_assignments('maxmind')
+        keys = ['start_str', 'end_str', 'start_num', 'end_num',
+                 'country_code', 'country_name']
+        for maxmind_url in maxmind_urls:
+            maxmind_path = os.path.join(self.cache_dir,
+                    maxmind_url.split('/')[-1])
+            if not os.path.exists(maxmind_path):
+                print "Unable to find %s." % maxmind_path
+                continue
+            if maxmind_path.endswith('.zip'):
+                maxmind_zip_path = zipfile.ZipFile(maxmind_path)
+                for contained_filename in maxmind_zip_path.namelist():
+                    content = maxmind_zip_path.read(contained_filename)
+                    for line in content.split('\n'):
+                        if len(line) == 0 or line.startswith("#"):
+                            continue
+                        line = line.replace('"', '').replace(' ', '').strip()
+                        parts = line.split(',')
+                        entry = dict((k, v) for k, v in zip(keys, parts))
+                        start_num = int(entry['start_num'])
+                        end_num = int(entry['end_num'])
+                        country_code = str(entry['country_code'])
+                        self.database_cache.insert_assignment(start_num,
+                                end_num, 'ipv4', country_code, 'maxmind',
+                                'maxmind')
+            elif maxmind_path.endswith('.gz'):
+                for line in gzip.open(maxmind_path):
+                    if len(line) == 0 or line.startswith("#"):
+                        continue
+                    line = line.replace('"', '').replace(' ', '').strip()
+                    parts = line.split(',')
+                    entry = dict((k, v) for k, v in zip(keys, parts))
+                    start_num = int(entry['start_num'])
+                    end_num = int(entry['end_num'])
+                    country_code = str(entry['country_code'])
+                    self.database_cache.insert_assignment(start_num,
+                            end_num, 'ipv6', country_code, 'maxmind',
+                            'maxmind')
+        self.database_cache.commit_changes()
 
-    def verify_cache(self, delegation_files):
-        """ If in verbose mode prints the result of checking the checksum
-            of the delegation files. """
-        for file in delegation_files:
-            if self.verbose:
-                print "verifying " + file
-            if self.verify_delegation_file(file):
-                if self.verbose:
-                    print "the md5 checksum of " + file + \
-                            " *matches* the provided checksum"
-            else:
-                if self.verbose:
-                    print "the md5 checksum of " + file + \
-                            " does *not* match the provided checksum"
-
-    def update_delegation_cache(self, delegation_urls):
-        """ Fetch multiple delegation urls and cache the contents. """
-        print "Updating delegation cache..."
-        for url in delegation_urls.split():
-            self.cache_delegation(url + ".md5")
-            if self.verify_delegation_file(url.rpartition('/')[-1]):
-                pass
-            else:
-                self.cache_delegation(url)
-
-    def update_lir_delegation_cache(self, delegation_urls):
-        """ Fetch multiple LIR delegation urls and cache the contents. """
-        print "Updating LIR delegation cache..."
-        for url in delegation_urls.split():
-            self.cache_delegation(url)
-        self.unpack_a_delegation_cache(delegation_urls, "LIR")
-
-    def unpack_a_delegation_cache(self, delegation_urls, del_type=""):
-        """ Unpack the fetched LIR delegation files into the blockfinder
-            cache. """
-        # This probably should unlink the gzip'ed file if we care about
-        # space...
-        for url in delegation_urls.split():
-            gzip_filename = url.rpartition('/')[-1]
-            gunziped_filename = gzip_filename.rpartition('.')[0]
-            if self.verbose:
-                print "Unpacking " + del_type + "file " + \
-                        gzip_filename + " into our cache as " + \
-                        gunziped_filename
-            self.extract_data_from_gzip_file(self.cache_dir + \
-                    gzip_filename, self.cache_dir + gunziped_filename)
-
-    def update_geoip_cache(self, geoip_urls):
-        """ Fetch country level resolution GeoIP files from a given url
-            and cache the contents. Unpack it if it's compressed. """
-        print "Updating GeoIP cache..."
-        for url in geoip_urls.split():
-            self.cache_delegation(url)
-        self.unpack_a_delegation_cache(geoip_urls, "GeoIP")
-
-    def load_delegation(self, delegation_file):
-        """ Load, parse and store the delegation file contents as a
-            list. """
-        keys = "registry cc type start value date status"
-        try:
-            f = open(delegation_file, "r")
-            delegations = [dict((k,v) for k,v in zip(keys.split(), \
-                    line.strip().split("|"))) \
-                    for line in f.readlines() if not line.startswith("#")]
-            f.close()
-            return delegations
-        except OSError, e:
-            print repr(e)
-
-    def load_all_delegations(self, delegation_urls):
-        """ Load all delegations into memory. """
-        delegations = []
-        for url in delegation_urls.split():
-            filename = url.rpartition('/')[-1]
-            if self.verbose:
-                print "Attempting to load delegation file into " \
-                        + "memory: " + filename
-            delegations.append(self.load_delegation(self.cache_dir + \
-                    filename))
-        return delegations
-
-    def download_country_code_file(self):
-        """ Download and save the latest opencountrycode
-            TXT(';'-separated) file """
-        url = "http://www.iso.org/iso/list-en1-semic-3.txt"
-        print "Fetching " + url
-        text_content = self.fetch(url)
-        self.write_to_a_text_file(self.cache_dir + "countrycodes.txt", \
-                text_content)
-
-    def extract_info_from_lir_file_and_insert_into_sqlite(self, filename):
-        start_num = 0
-        end_num = 0
-        country_code = ""
-        entry = False
-        num_type = ""
-        for line in open(self.cache_dir + filename, "r"):
-            line = line.replace("\n", "")
-            if line == "":
-                entry = False
-                start_num, end_num, country_code, num_type = 0, 0, "", ""
-            elif not entry and "inetnum:" in line:
-                try:
-                    line = line.replace("inetnum:", "").strip()
-                    start_str = line.split("-")[0].strip()
-                    end_str = line.split("-")[1].strip()
-                    start_num = int(ipaddr.IPv4Address(start_str))
-                    end_num = int(ipaddr.IPv4Address(end_str))
-                    entry = True
-                    num_type = 'ipv4'
-                except Exception, e:
-                    if self.verbose:
-                        print repr(e), line
-            elif not entry and "inet6num:" in line:
-                try:
-                    network_str = line.replace("inet6num:", "").strip()
+    def parse_rir_files(self, rir_urls=None):
+        """ Parse locally cached RIR files and insert assignments to the local
+            database cache, overwriting any existing RIR assignments. """
+        if not rir_urls:
+            rir_urls = self.RIR_URLS.split()
+        self.database_cache.delete_assignments('rir')
+        keys = "registry country_code type start value date status"
+        for rir_url in rir_urls:
+            rir_path = os.path.join(self.cache_dir,
+                    rir_url.split('/')[-1])
+            if not os.path.exists(rir_path):
+                print "Unable to find %s." % rir_path
+                continue
+            for line in open(rir_path, 'r'):
+                if line.startswith("#"):
+                    continue
+                entry = dict((k, v) for k, v in
+                        zip(keys.split(), line.strip().split("|")))
+                source_name = str(entry['registry'])
+                country_code = str(entry['country_code'])
+                if source_name.isdigit() or country_code == "*":
+                    continue
+                num_type = entry['type']
+                if num_type == 'asn':
+                    start_num = end_num = int(entry['start'])
+                elif num_type == 'ipv4':
+                    start_num = int(ipaddr.IPAddress(entry['start']))
+                    end_num = start_num + long(entry['value']) - 1
+                elif num_type == 'ipv6':
+                    network_str = entry['start'] + '/' + entry['value']
                     network_ipaddr = ipaddr.IPv6Network(network_str)
                     start_num = int(network_ipaddr.network)
                     end_num = int(network_ipaddr.broadcast)
-                    entry = True
-                    num_type = 'ipv6'
-                except Exception, e:
-                    if self.verbose:
-                        print repr(e), line
-            elif entry and "country:" in line:
-                country_code = line.replace("country:", "").strip()
-                self.database_cache.insert_assignment(start_num, \
-                        end_num, num_type, country_code, 'lir', 'ripencc')
+                self.database_cache.insert_assignment(start_num,
+                        end_num, num_type, country_code, 'rir',
+                        source_name)
         self.database_cache.commit_changes()
 
-    def create_db_and_insert_delegation_into_db(self, delegation_urls):
-        self.database_cache.delete_assignments('rir')
-        delegations = self.load_all_delegations(delegation_urls)
-        for delegation in delegations:
-            for entry in delegation:
-                source_name = str(entry['registry'])
-                country_code = str(entry['cc'])
-                if not source_name.isdigit() and country_code != "*":
-                    num_type = entry['type']
-                    if num_type == 'asn':
-                        start_num = end_num = int(entry['start'])
-                    elif num_type == 'ipv4':
-                        start_num = int(ipaddr.IPAddress(entry['start']))
-                        end_num = start_num + long(entry['value']) - 1
-                    elif num_type == 'ipv6':
-                        network_str = entry['start'] + '/' + \
-                                entry['value']
+    def parse_lir_files(self, lir_urls=None):
+        """ Parse locally cached LIR files and insert assignments to the local
+            database cache, overwriting any existing LIR assignments. """
+        if not lir_urls:
+            lir_urls = self.LIR_URLS.split()
+        self.database_cache.delete_assignments('lir')
+        for lir_url in lir_urls:
+            lir_path = os.path.join(self.cache_dir,
+                    lir_url.split('/')[-1])
+            if not os.path.exists(lir_path):
+                print "Unable to find %s." % lir_path
+                continue
+            if lir_path.endswith('.gz'):
+                lir_file = gzip.open(lir_path)
+            else:
+                lir_file = open(lir_path)
+            start_num = 0
+            end_num = 0
+            country_code = ""
+            entry = False
+            num_type = ""
+            for line in lir_file:
+                line = line.replace("\n", "")
+                if line == "":
+                    entry = False
+                    start_num, end_num, country_code, num_type = 0, 0, "", ""
+                elif not entry and "inetnum:" in line:
+                    try:
+                        line = line.replace("inetnum:", "").strip()
+                        start_str = line.split("-")[0].strip()
+                        end_str = line.split("-")[1].strip()
+                        start_num = int(ipaddr.IPv4Address(start_str))
+                        end_num = int(ipaddr.IPv4Address(end_str))
+                        entry = True
+                        num_type = 'ipv4'
+                    except Exception, e:
+                        if self.verbose:
+                            print repr(e), line
+                elif not entry and "inet6num:" in line:
+                    try:
+                        network_str = line.replace("inet6num:", "").strip()
                         network_ipaddr = ipaddr.IPv6Network(network_str)
                         start_num = int(network_ipaddr.network)
                         end_num = int(network_ipaddr.broadcast)
+                        entry = True
+                        num_type = 'ipv6'
+                    except Exception, e:
+                        if self.verbose:
+                            print repr(e), line
+                elif entry and "country:" in line:
+                    country_code = line.replace("country:", "").strip()
                     self.database_cache.insert_assignment(start_num, \
-                            end_num, num_type, country_code, 'rir', \
-                            source_name)
+                            end_num, num_type, country_code, 'lir', 'ripencc')
         self.database_cache.commit_changes()
 
 class Lookup:
@@ -491,21 +473,18 @@ class Lookup:
     def build_country_code_dictionary(self):
         """ Return a dictionary mapping country name to the country
             code. """
-        if not os.path.exists(self.cache_dir + "countrycodes.txt"):
+        country_code_path = os.path.join(self.cache_dir,
+                'list-en1-semic-3.txt')
+        if not os.path.exists(country_code_path):
             return
         self.map_co = {}
-        txt_file = str(self.cache_dir) + "countrycodes.txt"
-        for line in open(txt_file, 'r'):
-            line = line.replace("\n", "").replace("\r", "")
-            if line.startswith("This list states the country"):
+        for line in open(country_code_path):
+            if line == "" or line.startswith("Country ") or ";" not in line:
                 continue
-            if line == "" or ";" not in line:
-                continue
-            name, code = line.split(";")
-            """ capitalize the individual parts of the country name """
-            name = ' '.join([part.capitalize() for part in \
-                    name.split(" ")])
-            self.map_co[name] = code
+            country_name, country_code = line.strip().split(";")
+            country_name = ' '.join([part.capitalize() for part in \
+                    country_name.split(" ")])
+            self.map_co[country_name] = country_code
 
     def knows_country_names(self):
         return self.map_co is not None
@@ -527,24 +506,9 @@ class Lookup:
         if len(cc_code) > 0:
             return cc_code[0]
 
-    def geoip_lookup(self, ip_addr):
-        # This would work with the CVS version of the GeoIP code
-        # However, MaxMind hasn't done a release in a long time.
-        # http://geoip.cvs.sourceforge.net/viewvc/geoip/python/\
-        # test_v6.py?revision=1.1&view=markup
-        #        gi = GeoIP.open(self.cache_dir + \
-        #                "GeoIPv6.dat", GeoIP.GEOIP_STANDARD)
-        #        cc = gi.country_code_by_addr_v6(ip_addr)
-        #        cc_name = gi.country_name_by_addr_v6(ip_addr)
-        gi = GeoIP.open(self.cache_dir + "GeoIP.dat", \
-                GeoIP.GEOIP_STANDARD)
-        cc = gi.country_code_by_addr(ip_addr)
-        cc_name = gi.country_name_by_addr(ip_addr)
-        return cc, cc_name
-
     def lookup_ipv6_address(self, lookup_ipaddr):
         print "Reverse lookup for: " + str(lookup_ipaddr)
-        for source_type in ['rir', 'lir']:
+        for source_type in ['maxmind', 'rir', 'lir']:
             cc = self.database_cache.fetch_country_code('ipv6', \
                     source_type, int(lookup_ipaddr))
             if cc:
@@ -555,17 +519,20 @@ class Lookup:
 
     def lookup_ipv4_address(self, lookup_ipaddr):
         print "Reverse lookup for: " + str(lookup_ipaddr)
-        if GeoIP:
-            geoip_cc, geoip_cc_name = self.geoip_lookup(str(lookup_ipaddr))
-            print "GeoIP country code: " + str(geoip_cc)
-            print "GeoIP country name: " + str(geoip_cc_name)
+        maxmind_cc = self.database_cache.fetch_country_code('ipv4', 'maxmind',
+                int(lookup_ipaddr))
+        if maxmind_cc:
+            print 'MaxMind country code:', maxmind_cc
+            maxmind_cn = self.get_name_from_country_code(maxmind_cc)
+            if maxmind_cn:
+                print 'MaxMind country name:', maxmind_cn
         rir_cc = self.database_cache.fetch_country_code('ipv4', 'rir', \
                 int(lookup_ipaddr))
         if rir_cc:
             print 'RIR country code:', rir_cc
             rir_cn = self.get_name_from_country_code(rir_cc)
             if rir_cn:
-                print 'RIR country:', rir_cn
+                print 'RIR country name:', rir_cn
         else:
             print 'Not found in RIR db'
         lir_cc = self.database_cache.fetch_country_code('ipv4', 'lir', \
@@ -574,17 +541,14 @@ class Lookup:
             print 'LIR country code:', lir_cc
             lir_cn = self.get_name_from_country_code(lir_cc)
             if lir_cn:
-                print 'LIR country:', lir_cn
-        if GeoIP:
-            if geoip_cc != rir_cc:
-                print "It appears that the RIR data conflicts with the " \
-                        "GeoIP data.  The GeoIP data is likely closer " \
-                        "to being correct due to sub-delegation issues " \
-                        "with LIR databases."
+                print 'LIR country name:', lir_cn
+        if maxmind_cc and maxmind_cc != rir_cc:
+            print "It appears that the RIR data conflicts with MaxMind's " \
+                    "data.  MaxMind's data is likely closer to being " \
+                    "correct due to sub-delegation issues with LIR databases."
 
     def lookup_ip_address(self, lookup_str):
-        """ Return the country code and name for a given ip address.
-            Attempts to use GeoIP if available. """
+        """ Return the country code and name for a given ip address. """
         try:
             lookup_ipaddr = ipaddr.IPAddress(lookup_str)
             if isinstance(lookup_ipaddr, ipaddr.IPv4Address):
@@ -640,6 +604,12 @@ def main():
     group = optparse.OptionGroup(parser, "Cache modes",
             "Pick at most one of these modes to initialize or update " \
             "the local cache.  May not be combined with lookup modes.")
+    group.add_option("-m", "--init-maxmind", action="store_true",
+            dest="init_maxmind",
+            help="initialize or update MaxMind GeoIP database")
+    group.add_option("-g", "--reload-maxmind", action="store_true",
+            dest="reload_maxmind",
+            help=("update cache from existing MaxMind GeoIP database"))
     group.add_option("-i", "--init-rir", \
             action="store_true", dest="init_del", \
             help="initialize or update delegation information")
@@ -684,9 +654,9 @@ def main():
         sys.exit(0)
     options_dict = vars(options)
     modes = 0
-    for mode in ["init_del", "init_lir", "reload_del", "reload_lir",
-                 "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
-                 "cc", "cn"]:
+    for mode in ["init_maxmind", "reload_maxmind", "init_del", "init_lir",
+                 "reload_del", "reload_lir", "download_cc", "erase_cache",
+                 "ipv4", "ipv6", "asn", "cc", "cn"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -706,27 +676,11 @@ def main():
     downloader_parser = DownloaderParser(options.dir, database_cache, \
             options.ua)
     lookup = Lookup(options.dir, database_cache)
-    delegation_urls = """
-        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
-        ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
-        ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
-        ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
-        ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
-    """
-    geoip_country_urls = """http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz
-    http://geolite.maxmind.com/download/geoip/database/GeoIPv6.dat.gz"""
-    lir_urls = """ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
-    ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz"""
-    delegation_files = []
-    for url in delegation_urls.split():
-        filename = url.rpartition('/')
-        delegation_files.append(filename[-1])
-    downloader_parser.create_blockfinder_cache_dir()
     if options.ipv4 or options.ipv6 or options.asn or options.cc \
             or options.cn:
-        if downloader_parser.cache_is_dated(delegation_files):
-            print "Your delegation cache is older than 24 hours; you " \
-                    "probably want to update it."
+        if downloader_parser.check_rir_file_mtimes():
+            print "Your cached RIR files are older than 24 hours; you " \
+                    "probably want to update them."
     if options.asn:
         lookup.asn_lookup(options.asn)
     elif options.ipv4:
@@ -748,24 +702,28 @@ def main():
             for request in ["ipv4", "ipv6", "asn"]:
                 print "\n".join(lookup.fetch_rir_blocks_by_country(\
                         request, country))
+    elif options.init_maxmind or options.reload_maxmind:
+        if options.init_maxmind:
+            print "Downloading Maxmind GeoIP files..."
+            downloader_parser.download_maxmind_files()
+        print "Importing Maxmind GeoIP files..."
+        downloader_parser.parse_maxmind_files()
     elif options.init_del or options.reload_del:
         if options.init_del:
-            if GeoIP:
-                downloader_parser.update_geoip_cache(geoip_country_urls)
-            downloader_parser.update_delegation_cache(delegation_urls)
-            if options.verbose:
-                lookup.verify_cache(delegation_files)
-        downloader_parser.create_db_and_insert_delegation_into_db(\
-                delegation_urls)
+            print "Downloading RIR files..."
+            downloader_parser.download_rir_files()
+            print "Verifying RIR files..."
+            downloader_parser.verify_rir_files()
+        print "Importing RIR files..."
+        downloader_parser.parse_rir_files()
     elif options.init_lir or options.reload_lir:
         if options.init_lir:
-            downloader_parser.update_lir_delegation_cache(lir_urls)
-        print "Extracting and inserting information from the lir files " \
-                "can take up to 5 minutes"
-        self.database_cache.delete_assignments('lir')
-        for fname in "ripe.db.inetnum ripe.db.inet6num".split():
-            downloader_parser.extract_info_from_lir_file_and_insert_into_sqlite(fname)
+            print "Downloading LIR delegation files..."
+            downloader_parser.download_lir_files()
+        print "Importing LIR files..."
+        downloader_parser.parse_lir_files()
     elif options.download_cc:
+        print "Downloading country code file..."
         downloader_parser.download_country_code_file()
     database_cache.commit_and_close_database()
 
