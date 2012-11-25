@@ -32,7 +32,7 @@ class DatabaseCache:
         self.verbose = verbose
         self.cursor = None
         self.conn = None
-        self.db_version = "0.0.2"
+        self.db_version = "0.0.3"
         self.db_path = os.path.join(self.cache_dir + "sqlitedb")
 
     def erase_database(self):
@@ -106,14 +106,17 @@ class DatabaseCache:
 
     def create_assignments_table(self):
         """ Create the assignments table that stores all assignments from
-            IPv4/IPv6/ASN to country code.  Blocks are stored as start hex
-            to end hex, because SQLite's INTEGER type only holds up to 63
-            unsigned bits, which is not enough to store a /64 IPv6 block.
-            Hex strings have leading zeros, with IPv6 addresses being 32
-            hex characters long and IPv4 addresses and ASN being 8 hex
-            characters long. """
+            IPv4/IPv6/ASN to country code.  Blocks are stored as first hex
+            of and first hex after the assignment.  Numbers are stored
+            as hex strings, because SQLite's INTEGER type only holds up to
+            63 unsigned bits, which is not enough to store a /64 IPv6
+            block.  Hex strings have leading zeros, with IPv6 addresses
+            being 32 hex characters long and IPv4 addresses and ASN being
+            8 hex characters long.  The first number after an assignment
+            range is stored instead of the last number in the range to
+            facilitate comparisons with neighboring ranges. """
         sql = ('CREATE TABLE IF NOT EXISTS assignments(start_hex TEXT, '
-               'end_hex TEXT, num_type TEXT, country_code TEXT, '
+               'next_start_hex TEXT, num_type TEXT, country_code TEXT, '
                'source_type TEXT, source_name TEXT)')
         self.cursor.execute(sql)
         self.conn.commit()
@@ -129,16 +132,16 @@ class DatabaseCache:
             country_code, source_type, source_name):
         """ Insert an assignment into the database cache, without
             commiting after the insertion. """
-        sql = ('INSERT INTO assignments (start_hex, end_hex, num_type, '
-               'country_code, source_type, source_name) '
+        sql = ('INSERT INTO assignments (start_hex, next_start_hex, '
+               'num_type, country_code, source_type, source_name) '
                'VALUES (?, ?, ?, ?, ?, ?)')
         if num_type == 'ipv6':
             start_hex = '%032x' % start_num
-            end_hex = '%032x' % end_num
+            next_start_hex = '%032x' % (end_num + 1)
         else:
             start_hex = '%08x' % start_num
-            end_hex = '%08x' % end_num
-        self.cursor.execute(sql, (start_hex, end_hex, num_type,
+            next_start_hex = '%08x' % (end_num + 1)
+        self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
                 country_code, source_type, source_name))
 
     def commit_changes(self):
@@ -151,13 +154,13 @@ class DatabaseCache:
             given number type ("asn", "ipv4", or "ipv6") and country code.
             The result is a sorted list of tuples containing (start_num,
             end_num). """
-        sql = ('SELECT start_hex, end_hex FROM assignments '
+        sql = ('SELECT start_hex, next_start_hex FROM assignments '
                'WHERE num_type = ? AND country_code = ? '
                'ORDER BY start_hex')
         self.cursor.execute(sql, (num_type, country_code))
         result = []
         for row in self.cursor:
-            result.append((long(row[0], 16), long(row[1], 16)))
+            result.append((long(row[0], 16), long(row[1], 16) - 1))
         return result
 
     def fetch_country_code(self, num_type, source_type, lookup_num):
@@ -166,7 +169,8 @@ class DatabaseCache:
             notation), number type (e.g., "ipv4"), and source type (e.g.,
             "rir"). """
         sql = ('SELECT country_code FROM assignments WHERE num_type = ? '
-               'AND source_type = ? AND start_hex <= ? AND end_hex >= ?')
+               'AND source_type = ? AND start_hex <= ? '
+               'AND next_start_hex > ?')
         if num_type == 'ipv6':
             lookup_hex = '%032x' % long(lookup_num)
         else:
