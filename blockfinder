@@ -32,7 +32,7 @@ class DatabaseCache:
         self.verbose = verbose
         self.cursor = None
         self.conn = None
-        self.db_version = "0.0.2"
+        self.db_version = "0.0.3"
         self.db_path = os.path.join(self.cache_dir + "sqlitedb")
 
     def erase_database(self):
@@ -106,14 +106,17 @@ class DatabaseCache:
 
     def create_assignments_table(self):
         """ Create the assignments table that stores all assignments from
-            IPv4/IPv6/ASN to country code.  Blocks are stored as start hex
-            to end hex, because SQLite's INTEGER type only holds up to 63
-            unsigned bits, which is not enough to store a /64 IPv6 block.
-            Hex strings have leading zeros, with IPv6 addresses being 32
-            hex characters long and IPv4 addresses and ASN being 8 hex
-            characters long. """
+            IPv4/IPv6/ASN to country code.  Blocks are stored as first hex
+            of and first hex after the assignment.  Numbers are stored
+            as hex strings, because SQLite's INTEGER type only holds up to
+            63 unsigned bits, which is not enough to store a /64 IPv6
+            block.  Hex strings have leading zeros, with IPv6 addresses
+            being 32 hex characters long and IPv4 addresses and ASN being
+            8 hex characters long.  The first number after an assignment
+            range is stored instead of the last number in the range to
+            facilitate comparisons with neighboring ranges. """
         sql = ('CREATE TABLE IF NOT EXISTS assignments(start_hex TEXT, '
-               'end_hex TEXT, num_type TEXT, country_code TEXT, '
+               'next_start_hex TEXT, num_type TEXT, country_code TEXT, '
                'source_type TEXT, source_name TEXT)')
         self.cursor.execute(sql)
         self.conn.commit()
@@ -129,16 +132,16 @@ class DatabaseCache:
             country_code, source_type, source_name):
         """ Insert an assignment into the database cache, without
             commiting after the insertion. """
-        sql = ('INSERT INTO assignments (start_hex, end_hex, num_type, '
-               'country_code, source_type, source_name) '
+        sql = ('INSERT INTO assignments (start_hex, next_start_hex, '
+               'num_type, country_code, source_type, source_name) '
                'VALUES (?, ?, ?, ?, ?, ?)')
         if num_type == 'ipv6':
             start_hex = '%032x' % start_num
-            end_hex = '%032x' % end_num
+            next_start_hex = '%032x' % (end_num + 1)
         else:
             start_hex = '%08x' % start_num
-            end_hex = '%08x' % end_num
-        self.cursor.execute(sql, (start_hex, end_hex, num_type,
+            next_start_hex = '%08x' % (end_num + 1)
+        self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
                 country_code, source_type, source_name))
 
     def commit_changes(self):
@@ -151,13 +154,13 @@ class DatabaseCache:
             given number type ("asn", "ipv4", or "ipv6") and country code.
             The result is a sorted list of tuples containing (start_num,
             end_num). """
-        sql = ('SELECT start_hex, end_hex FROM assignments '
+        sql = ('SELECT start_hex, next_start_hex FROM assignments '
                'WHERE num_type = ? AND country_code = ? '
                'ORDER BY start_hex')
         self.cursor.execute(sql, (num_type, country_code))
         result = []
         for row in self.cursor:
-            result.append((long(row[0], 16), long(row[1], 16)))
+            result.append((long(row[0], 16), long(row[1], 16) - 1))
         return result
 
     def fetch_country_code(self, num_type, source_type, lookup_num):
@@ -166,7 +169,8 @@ class DatabaseCache:
             notation), number type (e.g., "ipv4"), and source type (e.g.,
             "rir"). """
         sql = ('SELECT country_code FROM assignments WHERE num_type = ? '
-               'AND source_type = ? AND start_hex <= ? AND end_hex >= ?')
+               'AND source_type = ? AND start_hex <= ? '
+               'AND next_start_hex > ?')
         if num_type == 'ipv6':
             lookup_hex = '%032x' % long(lookup_num)
         else:
@@ -176,6 +180,34 @@ class DatabaseCache:
         row = self.cursor.fetchone()
         if row:
             return row[0]
+
+    def fetch_country_blocks_in_other_sources(self, first_country_code):
+        """ Fetch all assignments matching the given country code, then look
+            up to which country code(s) the same number ranges are assigned in
+            other source types.  Return 8-tuples containing (1) first source
+            type, (2) first and (3) last number of the assignment in the first
+            source type, (4) second source type, (5) first and (6) last number
+            of the assignment in the second source type, (7) country code in
+            the second source type, and (8) number type. """
+        sql = ('SELECT first.source_type, first.start_hex, '
+               'first.next_start_hex, second.source_type, '
+               'second.start_hex, second.next_start_hex, '
+               'second.country_code, first.num_type '
+               'FROM assignments AS first '
+               'JOIN assignments AS second '
+               'WHERE first.country_code = ? '
+               'AND first.start_hex <= second.next_start_hex '
+               'AND first.next_start_hex >= second.start_hex '
+               'AND first.num_type = second.num_type '
+               'ORDER BY first.source_type, first.start_hex, '
+               'second.source_type, second.start_hex')
+        self.cursor.execute(sql, (first_country_code, ))
+        result = []
+        for row in self.cursor:
+            result.append((str(row[0]), long(row[1], 16),
+                    long(row[2], 16) - 1, str(row[3]), long(row[4], 16),
+                    long(row[5], 16) - 1, str(row[6]), str(row[7])))
+        return result
 
 class DownloaderParser:
     def __init__(self, cache_dir, database_cache, user_agent, \
@@ -330,8 +362,6 @@ class DownloaderParser:
         if not maxmind_urls:
             maxmind_urls = self.MAXMIND_URLS.split()
         self.database_cache.delete_assignments('maxmind')
-        keys = ['start_str', 'end_str', 'start_num', 'end_num',
-                 'country_code', 'country_name']
         for maxmind_url in maxmind_urls:
             maxmind_path = os.path.join(self.cache_dir,
                     maxmind_url.split('/')[-1])
@@ -342,32 +372,41 @@ class DownloaderParser:
                 maxmind_zip_path = zipfile.ZipFile(maxmind_path)
                 for contained_filename in maxmind_zip_path.namelist():
                     content = maxmind_zip_path.read(contained_filename)
-                    for line in content.split('\n'):
-                        if len(line) == 0 or line.startswith("#"):
-                            continue
-                        line = line.replace('"', '').replace(' ', '').strip()
-                        parts = line.split(',')
-                        entry = dict((k, v) for k, v in zip(keys, parts))
-                        start_num = int(entry['start_num'])
-                        end_num = int(entry['end_num'])
-                        country_code = str(entry['country_code'])
-                        self.database_cache.insert_assignment(start_num,
-                                end_num, 'ipv4', country_code, 'maxmind',
-                                'maxmind')
-            elif maxmind_path.endswith('.gz'):
-                for line in gzip.open(maxmind_path):
-                    if len(line) == 0 or line.startswith("#"):
-                        continue
-                    line = line.replace('"', '').replace(' ', '').strip()
-                    parts = line.split(',')
-                    entry = dict((k, v) for k, v in zip(keys, parts))
-                    start_num = int(entry['start_num'])
-                    end_num = int(entry['end_num'])
-                    country_code = str(entry['country_code'])
-                    self.database_cache.insert_assignment(start_num,
-                            end_num, 'ipv6', country_code, 'maxmind',
+                    self._parse_maxmind_content(content, 'maxmind',
                             'maxmind')
+            elif maxmind_path.endswith('.gz'):
+                content = gzip.open(maxmind_path).read()
+                self._parse_maxmind_content(content, 'maxmind', 'maxmind')
         self.database_cache.commit_changes()
+
+    def import_maxmind_file(self, maxmind_path):
+        self.database_cache.delete_assignments(maxmind_path)
+        if not os.path.exists(maxmind_path):
+            print "Unable to find %s." % maxmind_path
+            return
+        content = open(maxmind_path).read()
+        self._parse_maxmind_content(content, maxmind_path, maxmind_path)
+        self.database_cache.commit_changes()
+
+    def _parse_maxmind_content(self, content, source_type, source_name):
+        keys = ['start_str', 'end_str', 'start_num', 'end_num',
+                 'country_code', 'country_name']
+        for line in content.split('\n'):
+            if len(line.strip()) == 0 or line.startswith("#"):
+                continue
+            line = line.replace('"', '').replace(' ', '').strip()
+            parts = line.split(',')
+            entry = dict((k, v) for k, v in zip(keys, parts))
+            start_num = int(entry['start_num'])
+            end_num = int(entry['end_num'])
+            country_code = str(entry['country_code'])
+            start_ipaddr = ipaddr.IPAddress(entry['start_str'])
+            if isinstance(start_ipaddr, ipaddr.IPv4Address):
+                num_type = 'ipv4'
+            else:
+                num_type = 'ipv6'
+            self.database_cache.insert_assignment(start_num, end_num,
+                    num_type, country_code, source_type, source_name)
 
     def parse_rir_files(self, rir_urls=None):
         """ Parse locally cached RIR files and insert assignments to the local
@@ -585,6 +624,61 @@ class Lookup:
                 result.append(str(start_num))
         return result
 
+    def lookup_countries_in_different_source(self, first_country_code):
+        """ Look up all assignments matching the given country code, then
+            look up to which country code(s) the same number ranges are
+            assigned in other source types.  Print out the result showing
+            similarities and differences. """
+        print ("\nLegend:\n"
+               "  '<' = found assignment range with country code '%s'\n"
+               "  '>' = overlapping assignment range with same country code\n"
+               "  '*' = overlapping assignment range, first conflict\n"
+               "  '#' = overlapping assignment range, second conflict and "
+               "beyond\n  ' ' = neighboring assignment range") % (
+               first_country_code, )
+        results = self.database_cache.fetch_country_blocks_in_other_sources(
+                first_country_code)
+        prev_first_source_type = ''
+        prev_first_start_num = -1
+        cur_second_country_codes = []
+        for (first_source_type, first_start_num, first_end_num,
+                second_source_type, second_start_num, second_end_num,
+                second_country_code, num_type) in results:
+            if first_source_type != prev_first_source_type:
+                print "\nAssignments in '%s':" % (first_source_type, )
+            prev_first_source_type = first_source_type
+            if first_start_num != prev_first_start_num:
+                cur_second_country_codes = []
+                print ""
+            prev_first_start_num = first_start_num
+            marker = ''
+            if second_end_num >= first_start_num and \
+                    second_start_num <= first_start_num:
+                if first_country_code != second_country_code and \
+                        second_country_code not in cur_second_country_codes:
+                    cur_second_country_codes.append(second_country_code)
+                if first_source_type == second_source_type:
+                    marker = '<'
+                elif len(cur_second_country_codes) == 0:
+                    marker = '>'
+                elif len(cur_second_country_codes) == 1:
+                    marker = '*'
+                else:
+                    marker = '#'
+            if num_type.startswith("ip") and \
+                    second_start_num == second_end_num:
+                second_range = "%s" % (ipaddr.IPAddress(second_start_num), )
+            elif num_type.startswith("ip") and \
+                    second_start_num < second_end_num:
+                second_range = "%s-%s" % (ipaddr.IPAddress(second_start_num),
+                        ipaddr.IPAddress(second_end_num))
+            elif second_start_num < second_end_num:
+                second_range = "AS%d-%d" % (second_start_num, second_end_num)
+            else:
+                second_range = "AS%d" % (second_start_num, )
+            print "%1s %s %s %s" % (marker, second_country_code, second_range,
+                    second_source_type, )
+
 def main():
     """ Where the magic starts. """
     usage = "Usage: %prog [options]\n\n" \
@@ -610,6 +704,11 @@ def main():
     group.add_option("-g", "--reload-maxmind", action="store_true",
             dest="reload_maxmind",
             help=("update cache from existing MaxMind GeoIP database"))
+    group.add_option("-r", "--import-maxmind", action="store",
+            dest="import_maxmind", metavar="FILE",
+            help=("import the specified MaxMind GeoIP database file into "
+                  "the database cache using its file name as source "
+                  "name"))
     group.add_option("-i", "--init-rir", \
             action="store_true", dest="init_del", \
             help="initialize or update delegation information")
@@ -646,6 +745,11 @@ def main():
     group.add_option("-n", "--name", action="store", dest="cn", \
             help=("look up all allocations in the delegation cache for "
                   "the specified full country name"))
+    group.add_option("-p", "--compare", action="store", dest="compare",
+            metavar="CC",
+            help=("compare assignments to the specified country code "
+                  "with overlapping assignments in other data sources; "
+                  "can take some time and produce some long output"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
@@ -654,9 +758,10 @@ def main():
         sys.exit(0)
     options_dict = vars(options)
     modes = 0
-    for mode in ["init_maxmind", "reload_maxmind", "init_del", "init_lir",
-                 "reload_del", "reload_lir", "download_cc", "erase_cache",
-                 "ipv4", "ipv6", "asn", "cc", "cn"]:
+    for mode in ["init_maxmind", "reload_maxmind", "import_maxmind",
+                 "init_del", "init_lir", "reload_del", "reload_lir",
+                 "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
+                 "cc", "cn", "compare"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -677,7 +782,7 @@ def main():
             options.ua)
     lookup = Lookup(options.dir, database_cache)
     if options.ipv4 or options.ipv6 or options.asn or options.cc \
-            or options.cn:
+            or options.cn or options.compare:
         if downloader_parser.check_rir_file_mtimes():
             print "Your cached RIR files are older than 24 hours; you " \
                     "probably want to update them."
@@ -702,12 +807,19 @@ def main():
             for request in ["ipv4", "ipv6", "asn"]:
                 print "\n".join(lookup.fetch_rir_blocks_by_country(\
                         request, country))
+    elif options.compare:
+        print ("Comparing assignments with overlapping assignments in other "
+               "data sources...")
+        lookup.lookup_countries_in_different_source(options.compare)
     elif options.init_maxmind or options.reload_maxmind:
         if options.init_maxmind:
             print "Downloading Maxmind GeoIP files..."
             downloader_parser.download_maxmind_files()
         print "Importing Maxmind GeoIP files..."
         downloader_parser.parse_maxmind_files()
+    elif options.import_maxmind:
+        print "Importing Maxmind GeoIP files..."
+        downloader_parser.import_maxmind_file(options.import_maxmind)
     elif options.init_del or options.reload_del:
         if options.init_del:
             print "Downloading RIR files..."
