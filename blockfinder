@@ -181,6 +181,34 @@ class DatabaseCache:
         if row:
             return row[0]
 
+    def fetch_country_blocks_in_other_sources(self, first_country_code):
+        """ Fetch all assignments matching the given country code, then look
+            up to which country code(s) the same number ranges are assigned in
+            other source types.  Return 8-tuples containing (1) first source
+            type, (2) first and (3) last number of the assignment in the first
+            source type, (4) second source type, (5) first and (6) last number
+            of the assignment in the second source type, (7) country code in
+            the second source type, and (8) number type. """
+        sql = ('SELECT first.source_type, first.start_hex, '
+               'first.next_start_hex, second.source_type, '
+               'second.start_hex, second.next_start_hex, '
+               'second.country_code, first.num_type '
+               'FROM assignments AS first '
+               'JOIN assignments AS second '
+               'WHERE first.country_code = ? '
+               'AND first.start_hex <= second.next_start_hex '
+               'AND first.next_start_hex >= second.start_hex '
+               'AND first.num_type = second.num_type '
+               'ORDER BY first.source_type, first.start_hex, '
+               'second.source_type, second.start_hex')
+        self.cursor.execute(sql, (first_country_code, ))
+        result = []
+        for row in self.cursor:
+            result.append((str(row[0]), long(row[1], 16),
+                    long(row[2], 16) - 1, str(row[3]), long(row[4], 16),
+                    long(row[5], 16) - 1, str(row[6]), str(row[7])))
+        return result
+
 class DownloaderParser:
     def __init__(self, cache_dir, database_cache, user_agent, \
             verbose=False):
@@ -589,6 +617,61 @@ class Lookup:
                 result.append(str(start_num))
         return result
 
+    def lookup_countries_in_different_source(self, first_country_code):
+        """ Look up all assignments matching the given country code, then
+            look up to which country code(s) the same number ranges are
+            assigned in other source types.  Print out the result showing
+            similarities and differences. """
+        print ("\nLegend:\n"
+               "  '<' = found assignment range with country code '%s'\n"
+               "  '>' = overlapping assignment range with same country code\n"
+               "  '*' = overlapping assignment range, first conflict\n"
+               "  '#' = overlapping assignment range, second conflict and "
+               "beyond\n  ' ' = neighboring assignment range") % (
+               first_country_code, )
+        results = self.database_cache.fetch_country_blocks_in_other_sources(
+                first_country_code)
+        prev_first_source_type = ''
+        prev_first_start_num = -1
+        cur_second_country_codes = []
+        for (first_source_type, first_start_num, first_end_num,
+                second_source_type, second_start_num, second_end_num,
+                second_country_code, num_type) in results:
+            if first_source_type != prev_first_source_type:
+                print "\nAssignments in '%s':" % (first_source_type, )
+            prev_first_source_type = first_source_type
+            if first_start_num != prev_first_start_num:
+                cur_second_country_codes = []
+                print ""
+            prev_first_start_num = first_start_num
+            marker = ''
+            if second_end_num >= first_start_num and \
+                    second_start_num <= first_start_num:
+                if first_country_code != second_country_code and \
+                        second_country_code not in cur_second_country_codes:
+                    cur_second_country_codes.append(second_country_code)
+                if first_source_type == second_source_type:
+                    marker = '<'
+                elif len(cur_second_country_codes) == 0:
+                    marker = '>'
+                elif len(cur_second_country_codes) == 1:
+                    marker = '*'
+                else:
+                    marker = '#'
+            if num_type.startswith("ip") and \
+                    second_start_num == second_end_num:
+                second_range = "%s" % (ipaddr.IPAddress(second_start_num), )
+            elif num_type.startswith("ip") and \
+                    second_start_num < second_end_num:
+                second_range = "%s-%s" % (ipaddr.IPAddress(second_start_num),
+                        ipaddr.IPAddress(second_end_num))
+            elif second_start_num < second_end_num:
+                second_range = "AS%d-%d" % (second_start_num, second_end_num)
+            else:
+                second_range = "AS%d" % (second_start_num, )
+            print "%1s %s %s %s" % (marker, second_country_code, second_range,
+                    second_source_type, )
+
 def main():
     """ Where the magic starts. """
     usage = "Usage: %prog [options]\n\n" \
@@ -650,6 +733,11 @@ def main():
     group.add_option("-n", "--name", action="store", dest="cn", \
             help=("look up all allocations in the delegation cache for "
                   "the specified full country name"))
+    group.add_option("-p", "--compare", action="store", dest="compare",
+            metavar="CC",
+            help=("compare assignments to the specified country code "
+                  "with overlapping assignments in other data sources; "
+                  "can take some time and produce some long output"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
@@ -660,7 +748,7 @@ def main():
     modes = 0
     for mode in ["init_maxmind", "reload_maxmind", "init_del", "init_lir",
                  "reload_del", "reload_lir", "download_cc", "erase_cache",
-                 "ipv4", "ipv6", "asn", "cc", "cn"]:
+                 "ipv4", "ipv6", "asn", "cc", "cn", "compare"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -681,7 +769,7 @@ def main():
             options.ua)
     lookup = Lookup(options.dir, database_cache)
     if options.ipv4 or options.ipv6 or options.asn or options.cc \
-            or options.cn:
+            or options.cn or options.compare:
         if downloader_parser.check_rir_file_mtimes():
             print "Your cached RIR files are older than 24 hours; you " \
                     "probably want to update them."
@@ -706,6 +794,10 @@ def main():
             for request in ["ipv4", "ipv6", "asn"]:
                 print "\n".join(lookup.fetch_rir_blocks_by_country(\
                         request, country))
+    elif options.compare:
+        print ("Comparing assignments with overlapping assignments in other "
+               "data sources...")
+        lookup.lookup_countries_in_different_source(options.compare)
     elif options.init_maxmind or options.reload_maxmind:
         if options.init_maxmind:
             print "Downloading Maxmind GeoIP files..."
