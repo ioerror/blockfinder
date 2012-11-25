@@ -362,8 +362,6 @@ class DownloaderParser:
         if not maxmind_urls:
             maxmind_urls = self.MAXMIND_URLS.split()
         self.database_cache.delete_assignments('maxmind')
-        keys = ['start_str', 'end_str', 'start_num', 'end_num',
-                 'country_code', 'country_name']
         for maxmind_url in maxmind_urls:
             maxmind_path = os.path.join(self.cache_dir,
                     maxmind_url.split('/')[-1])
@@ -374,32 +372,41 @@ class DownloaderParser:
                 maxmind_zip_path = zipfile.ZipFile(maxmind_path)
                 for contained_filename in maxmind_zip_path.namelist():
                     content = maxmind_zip_path.read(contained_filename)
-                    for line in content.split('\n'):
-                        if len(line) == 0 or line.startswith("#"):
-                            continue
-                        line = line.replace('"', '').replace(' ', '').strip()
-                        parts = line.split(',')
-                        entry = dict((k, v) for k, v in zip(keys, parts))
-                        start_num = int(entry['start_num'])
-                        end_num = int(entry['end_num'])
-                        country_code = str(entry['country_code'])
-                        self.database_cache.insert_assignment(start_num,
-                                end_num, 'ipv4', country_code, 'maxmind',
-                                'maxmind')
-            elif maxmind_path.endswith('.gz'):
-                for line in gzip.open(maxmind_path):
-                    if len(line) == 0 or line.startswith("#"):
-                        continue
-                    line = line.replace('"', '').replace(' ', '').strip()
-                    parts = line.split(',')
-                    entry = dict((k, v) for k, v in zip(keys, parts))
-                    start_num = int(entry['start_num'])
-                    end_num = int(entry['end_num'])
-                    country_code = str(entry['country_code'])
-                    self.database_cache.insert_assignment(start_num,
-                            end_num, 'ipv6', country_code, 'maxmind',
+                    self._parse_maxmind_content(content, 'maxmind',
                             'maxmind')
+            elif maxmind_path.endswith('.gz'):
+                content = gzip.open(maxmind_path).read()
+                self._parse_maxmind_content(content, 'maxmind', 'maxmind')
         self.database_cache.commit_changes()
+
+    def import_maxmind_file(self, maxmind_path):
+        self.database_cache.delete_assignments(maxmind_path)
+        if not os.path.exists(maxmind_path):
+            print "Unable to find %s." % maxmind_path
+            return
+        content = open(maxmind_path).read()
+        self._parse_maxmind_content(content, maxmind_path, maxmind_path)
+        self.database_cache.commit_changes()
+
+    def _parse_maxmind_content(self, content, source_type, source_name):
+        keys = ['start_str', 'end_str', 'start_num', 'end_num',
+                 'country_code', 'country_name']
+        for line in content.split('\n'):
+            if len(line.strip()) == 0 or line.startswith("#"):
+                continue
+            line = line.replace('"', '').replace(' ', '').strip()
+            parts = line.split(',')
+            entry = dict((k, v) for k, v in zip(keys, parts))
+            start_num = int(entry['start_num'])
+            end_num = int(entry['end_num'])
+            country_code = str(entry['country_code'])
+            start_ipaddr = ipaddr.IPAddress(entry['start_str'])
+            if isinstance(start_ipaddr, ipaddr.IPv4Address):
+                num_type = 'ipv4'
+            else:
+                num_type = 'ipv6'
+            self.database_cache.insert_assignment(start_num, end_num,
+                    num_type, country_code, source_type, source_name)
 
     def parse_rir_files(self, rir_urls=None):
         """ Parse locally cached RIR files and insert assignments to the local
@@ -697,6 +704,11 @@ def main():
     group.add_option("-g", "--reload-maxmind", action="store_true",
             dest="reload_maxmind",
             help=("update cache from existing MaxMind GeoIP database"))
+    group.add_option("-r", "--import-maxmind", action="store",
+            dest="import_maxmind", metavar="FILE",
+            help=("import the specified MaxMind GeoIP database file into "
+                  "the database cache using its file name as source "
+                  "name"))
     group.add_option("-i", "--init-rir", \
             action="store_true", dest="init_del", \
             help="initialize or update delegation information")
@@ -746,9 +758,10 @@ def main():
         sys.exit(0)
     options_dict = vars(options)
     modes = 0
-    for mode in ["init_maxmind", "reload_maxmind", "init_del", "init_lir",
-                 "reload_del", "reload_lir", "download_cc", "erase_cache",
-                 "ipv4", "ipv6", "asn", "cc", "cn", "compare"]:
+    for mode in ["init_maxmind", "reload_maxmind", "import_maxmind",
+                 "init_del", "init_lir", "reload_del", "reload_lir",
+                 "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
+                 "cc", "cn", "compare"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -804,6 +817,9 @@ def main():
             downloader_parser.download_maxmind_files()
         print "Importing Maxmind GeoIP files..."
         downloader_parser.parse_maxmind_files()
+    elif options.import_maxmind:
+        print "Importing Maxmind GeoIP files..."
+        downloader_parser.import_maxmind_file(options.import_maxmind)
     elif options.init_del or options.reload_del:
         if options.init_del:
             print "Downloading RIR files..."
