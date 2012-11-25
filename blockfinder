@@ -653,7 +653,7 @@ class Lookup:
             prev_first_start_num = first_start_num
             marker = ''
             if second_end_num >= first_start_num and \
-                    second_start_num <= first_start_num:
+                    second_start_num <= first_end_num:
                 if first_country_code != second_country_code and \
                         second_country_code not in cur_second_country_codes:
                     cur_second_country_codes.append(second_country_code)
