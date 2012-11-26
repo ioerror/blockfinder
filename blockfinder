@@ -32,7 +32,7 @@ class DatabaseCache:
         self.verbose = verbose
         self.cursor = None
         self.conn = None
-        self.db_version = "0.0.3"
+        self.db_version = "0.0.4"
         self.db_path = os.path.join(self.cache_dir + "sqlitedb")
 
     def erase_database(self):
@@ -111,8 +111,8 @@ class DatabaseCache:
             as hex strings, because SQLite's INTEGER type only holds up to
             63 unsigned bits, which is not enough to store a /64 IPv6
             block.  Hex strings have leading zeros, with IPv6 addresses
-            being 32 hex characters long and IPv4 addresses and ASN being
-            8 hex characters long.  The first number after an assignment
+            being 33 hex characters long and IPv4 addresses and ASN being
+            9 hex characters long.  The first number after an assignment
             range is stored instead of the last number in the range to
             facilitate comparisons with neighboring ranges. """
         sql = ('CREATE TABLE IF NOT EXISTS assignments(start_hex TEXT, '
@@ -136,11 +136,11 @@ class DatabaseCache:
                'num_type, country_code, source_type, source_name) '
                'VALUES (?, ?, ?, ?, ?, ?)')
         if num_type == 'ipv6':
-            start_hex = '%032x' % start_num
-            next_start_hex = '%032x' % (end_num + 1)
+            start_hex = '%033x' % start_num
+            next_start_hex = '%033x' % (end_num + 1)
         else:
-            start_hex = '%08x' % start_num
-            next_start_hex = '%08x' % (end_num + 1)
+            start_hex = '%09x' % start_num
+            next_start_hex = '%09x' % (end_num + 1)
         self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
                 country_code, source_type, source_name))
 
@@ -172,9 +172,9 @@ class DatabaseCache:
                'AND source_type = ? AND start_hex <= ? '
                'AND next_start_hex > ?')
         if num_type == 'ipv6':
-            lookup_hex = '%032x' % long(lookup_num)
+            lookup_hex = '%033x' % long(lookup_num)
         else:
-            lookup_hex = '%08x' % long(lookup_num)
+            lookup_hex = '%09x' % long(lookup_num)
         self.cursor.execute(sql, (num_type, source_type, lookup_hex, \
                 lookup_hex))
         row = self.cursor.fetchone()
@@ -653,7 +653,7 @@ class Lookup:
             prev_first_start_num = first_start_num
             marker = ''
             if second_end_num >= first_start_num and \
-                    second_start_num <= first_start_num:
+                    second_start_num <= first_end_num:
                 if first_country_code != second_country_code and \
                         second_country_code not in cur_second_country_codes:
                     cur_second_country_codes.append(second_country_code)
