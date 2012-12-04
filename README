@@ -30,6 +30,6 @@ To use blockfinder, first create or update the cache:
 Once you have a proper cache, search for the desired resource in the country
 of your choice:
 
-    ./blockfinder -v --ipv4 -t mm
+    ./blockfinder -v -t mm
 
 [0] http://www.rollingstone.com/culture/news/17389/192242
