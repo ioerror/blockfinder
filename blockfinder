@@ -695,6 +695,8 @@ def main():
             default="Mozilla/5.0")
     parser.add_option("-x", "--hack-the-internet", action="store_true", \
             dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
+    parser.add_option("-f", "--filter", action="store", dest="ty", \
+            help=("filter lookups by type, e.g. IPv4, IPv6 or ASN"))
     group = optparse.OptionGroup(parser, "Cache modes",
             "Pick at most one of these modes to initialize or update " \
             "the local cache.  May not be combined with lookup modes.")
@@ -804,7 +806,10 @@ def main():
             if not country:
                 print "It appears your search did not match a country."
         if country:
-            for request in ["ipv4", "ipv6", "asn"]:
+            types = ["ipv4", "ipv6", "asn"]
+            if options.ty and options.ty.lower() in types:
+                types = [options.ty.lower()]
+            for request in types:
                 print "\n".join(lookup.fetch_rir_blocks_by_country(\
                         request, country))
     elif options.compare:
