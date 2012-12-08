@@ -682,6 +682,12 @@ class Lookup:
             print "%1s %s %s %s" % (marker, second_country_code, second_range,
                     second_source_type, )
 
+def split_callback(option, opt, value, parser):
+    split_value = value.split(':')
+    setattr(parser.values, option.dest, split_value[0])
+    if len(split_value) > 1 and split_value[1] != '':
+        setattr(parser.values, 'type_filter', split_value[1])
+
 def main():
     """ Where the magic starts. """
     usage = ("Usage: %prog [options]\n\n"
@@ -698,8 +704,6 @@ def main():
             default="Mozilla/5.0")
     parser.add_option("-x", "--hack-the-internet", action="store_true",
             dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
-    parser.add_option("-f", "--filter", action="store", dest="ty", \
-            help=("filter lookups by type, e.g. IPv4, IPv6 or ASN"))
     group = optparse.OptionGroup(parser, "Cache modes",
             "Pick at most one of these modes to initialize or update "
             "the local cache.  May not be combined with lookup modes.")
@@ -744,10 +748,14 @@ def main():
                   "address"))
     group.add_option("-a", "--asn", action="store", dest="asn",
             help="look up country code and name for the specified ASN")
-    group.add_option("-t", "--code", action="store", dest="cc",
+    group.add_option("-t", "--code", action="callback", dest="cc",
+            callback=split_callback,
+            type="str",
             help=("look up all allocations in the delegation cache for "
                   "the specified two-letter country code"))
-    group.add_option("-n", "--name", action="store", dest="cn",
+    group.add_option("-n", "--name", action="callback", dest="cn",
+            callback=split_callback,
+            type="str",
             help=("look up all allocations in the delegation cache for "
                   "the specified full country name"))
     group.add_option("-p", "--compare", action="store", dest="compare",
@@ -810,8 +818,8 @@ def main():
                 print "It appears your search did not match a country."
         if country:
             types = ["ipv4", "ipv6", "asn"]
-            if options.ty and options.ty.lower() in types:
-                types = [options.ty.lower()]
+            if hasattr(options, 'type_filter') and options.type_filter.lower() in types:
+                types = [options.type_filter.lower()]
             for request in types:
                 print "\n".join(lookup.fetch_rir_blocks_by_country(\
                         request, country))
@@ -846,7 +854,6 @@ def main():
         print "Downloading country code file..."
         downloader_parser.download_country_code_file()
     database_cache.commit_and_close_database()
-
 
 if __name__ == "__main__":
     main()
