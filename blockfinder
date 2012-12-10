@@ -749,15 +749,16 @@ def main():
     group.add_option("-a", "--asn", action="store", dest="asn",
             help="look up country code and name for the specified ASN")
     group.add_option("-t", "--code", action="callback", dest="cc",
-            callback=split_callback,
-            type="str",
-            help=("look up all allocations in the delegation cache for "
-                  "the specified two-letter country code"))
+            callback=split_callback, metavar="CC[:type]", type="str",
+            help=("look up all allocations (or only those for number "
+                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+                  "delegation cache for the specified two-letter country "
+                  "code"))
     group.add_option("-n", "--name", action="callback", dest="cn",
-            callback=split_callback,
-            type="str",
-            help=("look up all allocations in the delegation cache for "
-                  "the specified full country name"))
+            callback=split_callback, metavar="CN[:type]", type="str",
+            help=("look up all allocations (or only those for number "
+                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+                  "delegation cache for the specified full country name"))
     group.add_option("-p", "--compare", action="store", dest="compare",
             metavar="CC",
             help=("compare assignments to the specified country code "
