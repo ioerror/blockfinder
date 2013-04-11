@@ -682,6 +682,12 @@ class Lookup:
             print "%1s %s %s %s" % (marker, second_country_code, second_range,
                     second_source_type, )
 
+def split_callback(option, opt, value, parser):
+    split_value = value.split(':')
+    setattr(parser.values, option.dest, split_value[0])
+    if len(split_value) > 1 and split_value[1] != '':
+        setattr(parser.values, 'type_filter', split_value[1])
+
 def main():
     """ Where the magic starts. """
     usage = ("Usage: %prog [options]\n\n"
@@ -742,12 +748,17 @@ def main():
                   "address"))
     group.add_option("-a", "--asn", action="store", dest="asn",
             help="look up country code and name for the specified ASN")
-    group.add_option("-t", "--code", action="store", dest="cc",
-            help=("look up all allocations in the delegation cache for "
-                  "the specified two-letter country code"))
-    group.add_option("-n", "--name", action="store", dest="cn",
-            help=("look up all allocations in the delegation cache for "
-                  "the specified full country name"))
+    group.add_option("-t", "--code", action="callback", dest="cc",
+            callback=split_callback, metavar="CC[:type]", type="str",
+            help=("look up all allocations (or only those for number "
+                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+                  "delegation cache for the specified two-letter country "
+                  "code"))
+    group.add_option("-n", "--name", action="callback", dest="cn",
+            callback=split_callback, metavar="CN[:type]", type="str",
+            help=("look up all allocations (or only those for number "
+                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+                  "delegation cache for the specified full country name"))
     group.add_option("-p", "--compare", action="store", dest="compare",
             metavar="CC",
             help=("compare assignments to the specified country code "
@@ -807,9 +818,12 @@ def main():
             if not country:
                 print "It appears your search did not match a country."
         if country:
-            for request in ["ipv4", "ipv6", "asn"]:
-                print("\n".join(lookup.fetch_rir_blocks_by_country(
-                        request, country)))
+            types = ["ipv4", "ipv6", "asn"]
+            if hasattr(options, 'type_filter') and options.type_filter.lower() in types:
+                types = [options.type_filter.lower()]
+            for request in types:
+                print "\n".join(lookup.fetch_rir_blocks_by_country(\
+                        request, country))
     elif options.compare:
         print("Comparing assignments with overlapping assignments in other "
                "data sources...")
@@ -841,7 +855,6 @@ def main():
         print "Downloading country code file..."
         downloader_parser.download_country_code_file()
     database_cache.commit_and_close_database()
-
 
 if __name__ == "__main__":
     main()
