@@ -10,9 +10,13 @@ import sys
 import sqlite3
 import hashlib
 import gzip
-import ipaddr
 import ConfigParser
 import zipfile
+
+try:
+    import ipaddr
+except ImportError:
+    from embedded_ipaddr import ipaddr
 
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
