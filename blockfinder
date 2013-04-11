@@ -18,6 +18,8 @@ try:
 except ImportError:
     from embedded_ipaddr import ipaddr
 
+is_win32 = (sys.platform == "win32")
+
 __program__ = 'blockfinder'
 __url__ = 'https://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
@@ -307,15 +309,21 @@ class DownloaderParser:
     def _update_progress_bar(self, received_bytes, expected_bytes,
             seconds_elapsed):
         """ Write a progress bar to the console. """
-        rows, columns = map(int, os.popen('stty size', 'r').read().split())
+        if is_win32:
+          rows    = 100 # use some WinCon function for these?
+          columns = 80  # but not really important.
+          EOL = "\r"
+        else:
+          rows, columns = map(int, os.popen('stty size', 'r').read().split())
+          EOL = "\x1b[G"
         if seconds_elapsed == 0:
             seconds_elapsed = 1
         percent_done = float(received_bytes) / float(expected_bytes)
         caption = "%.2f K/s" % (received_bytes / 1024 / seconds_elapsed)
         width = columns - 4 - len(caption)
-        sys.stdout.write("[%s>%s] %s\x1b[G" % (
+        sys.stdout.write("[%s>%s] %s%s" % (
                 "=" * int(percent_done * width),
-                "." * (width - int(percent_done * width)), caption))
+                "." * (width - int(percent_done * width)), caption, EOL))
         sys.stdout.flush()
 
     def check_rir_file_mtimes(self):
