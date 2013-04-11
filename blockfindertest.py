@@ -4,8 +4,11 @@ import unittest
 import os
 import shutil
 import tempfile
-import ipaddr
 
+try:
+    import ipaddr
+except ImportError:
+    from embedded_ipaddr import ipaddr
 
 class BaseBlockfinderTest(unittest.TestCase):
     def setUp(self):
