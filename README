@@ -37,4 +37,8 @@ Additionally, to filter results for a specific protocol you can use a selector:
     ./blockfinder -v -t mm:ipv4 
 
 
+On Windows (in cmd, PowerShell and 4nt) one may find blockfinder.bat useful:
+
+  blockfinder.bat
+
 [0] http://www.rollingstone.com/culture/news/17389/192242
