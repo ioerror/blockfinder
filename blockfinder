@@ -776,6 +776,8 @@ def main():
             help=("compare assignments to the specified country code "
                   "with overlapping assignments in other data sources; "
                   "can take some time and produce some long output"))
+    group.add_option("-w", "--what-country", action="store", dest="what_cc",
+            help=("look up country name for specified country code"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
@@ -787,7 +789,7 @@ def main():
     for mode in ["init_maxmind", "reload_maxmind", "import_maxmind",
                  "init_del", "init_lir", "reload_del", "reload_lir",
                  "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
-                 "cc", "cn", "compare"]:
+                 "cc", "cn", "compare", "what_cc"]:
         if options_dict.has_key(mode) and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -818,13 +820,24 @@ def main():
         lookup.lookup_ip_address(options.ipv4)
     elif options.ipv6:
         lookup.lookup_ip_address(options.ipv6)
-    elif options.cc or options.cn:
+    elif options.cc or options.cn or options.what_cc:
         country = None
         if options.cc:
             country = options.cc.upper()
         elif not lookup.knows_country_names():
             print("Need to download country codes first before looking "
-                    "up countries by name.")
+                  "up countries by name.")
+        elif options.what_cc:
+            country = options.what_cc.upper()
+            country_name = lookup.get_name_from_country_code(country)
+            if country_name:
+                print("Hmm...%s? That would be %s."
+                      % (options.what_cc, country_name))
+                sys.exit(0)
+            else:
+                print("Hmm, %s? We're not sure either. Are you sure that's "
+                      "a country code?" % options.what_cc)
+                sys.exit(1)
         else:
             country = lookup.get_country_code_from_name(options.cn)
             if not country:
