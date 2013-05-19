@@ -713,7 +713,7 @@ def main():
     parser.add_option("--user-agent", action="store", dest="ua",
             help=('provide a User-Agent which will be used when '
                   'fetching delegation files [default: "%default"]'),
-            default="Mozilla/5.0 (Windows NT 6.1; rv:10.0) Gecko/20100101 Firefox/10.0)")
+            default="Mozilla/5.0 (Windows NT 6.1; rv:17.0) Gecko/20100101 Firefox/17.0")
     parser.add_option("-x", "--hack-the-internet", action="store_true",
             dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
     group = optparse.OptionGroup(parser, "Cache modes",
