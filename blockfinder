@@ -272,7 +272,7 @@ class DownloaderParser:
             local cache directory under the file name given in the URL. """
         if not os.path.exists(self.cache_dir):
             if self.verbose:
-                print "Initializing the cache directory..."
+                print("Initializing the cache directory...")
             os.mkdir(self.cache_dir)
         filename = url.split('/')[-1]
         req = urllib2.Request(url)
