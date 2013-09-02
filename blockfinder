@@ -12,6 +12,7 @@ import hashlib
 import gzip
 import ConfigParser
 import zipfile
+import re
 
 try:
     import ipaddr
@@ -231,7 +232,7 @@ class DownloaderParser:
     """
 
     RIR_URLS = """
-        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
+        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest
         ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
         ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
         ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
@@ -275,6 +276,8 @@ class DownloaderParser:
                 print "Initializing the cache directory..."
             os.mkdir(self.cache_dir)
         filename = url.split('/')[-1]
+        if self.verbose:
+            print(url)
         req = urllib2.Request(url)
         if self.user_agent:
             req.add_header('User-Agent', self.user_agent)
@@ -357,8 +360,19 @@ class DownloaderParser:
             rir_md5_file.close()
             if "=" in expected_checksum:
                 expected_checksum = expected_checksum.split("=")[-1].strip()
-            if expected_checksum == "":
+            elif expected_checksum == "":
+                if self.verbose:
+                    print("No checksum... skipping verification...")
                 continue
+            else:
+                regex = re.compile("[a-f0-9]{32}")
+                regres = regex.findall(expected_checksum)
+                if len(regres) > 1:
+                    print("Error: mutiple checksum found")
+                elif len(regres) < 1:
+                    print("Error: no checksum found")
+                else:
+                    expected_checksum = regres[0]
             computed_checksum = ""
             rir_file = open(rir_path, 'rb')
             rir_data = rir_file.read()
@@ -442,7 +456,7 @@ class DownloaderParser:
                         zip(keys.split(), line.strip().split("|")))
                 source_name = str(entry['registry'])
                 country_code = str(entry['country_code'])
-                if source_name.isdigit() or country_code == "*":
+                if source_name.replace(".", "", 1).isdigit() or country_code == "*":
                     continue
                 num_type = entry['type']
                 if num_type == 'asn':
