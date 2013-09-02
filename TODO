@@ -50,3 +50,4 @@ Refactor the argument parsing to make it reasonable
     Required arguments should be postional, etc
 Refactor updating/fetching animation
 Add system wide cache_dir to ease blockfinder use on multi user systems
+Package for Debian
