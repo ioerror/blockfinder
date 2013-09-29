@@ -273,7 +273,7 @@ class DownloaderParser:
             local cache directory under the file name given in the URL. """
         if not os.path.exists(self.cache_dir):
             if self.verbose:
-                print "Initializing the cache directory..."
+                print("Initializing the cache directory...")
             os.mkdir(self.cache_dir)
         filename = url.split('/')[-1]
         if self.verbose:
@@ -283,7 +283,12 @@ class DownloaderParser:
             req.add_header('User-Agent', self.user_agent)
         # TODO Allow use of a proxy.
         #req.set_proxy(host, type)
-        fetcher = urllib2.urlopen(req)
+        try:
+            fetcher = urllib2.urlopen(req)
+        except urllib2.URLError as err:
+            msg = "An error occurred while attempting to cache file from:"
+            print("%s\n\t%s\n\t%s" % (msg, url, str(err)))
+            return
         length_header = fetcher.headers.get("Content-Length")
         expected_bytes = -1
         if length_header:
