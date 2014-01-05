@@ -659,12 +659,20 @@ class _BaseNet(_IPAddrBase):
         return x
 
     @property
+    def network_address(self):
+        return self.network
+
+    @property
     def broadcast(self):
         x = self._cache.get('broadcast')
         if x is None:
             x = IPAddress(self._ip | int(self.hostmask), version=self._version)
             self._cache['broadcast'] = x
         return x
+
+    @property
+    def broadcast_address(self):
+        return self.broadcast
 
     @property
     def hostmask(self):
