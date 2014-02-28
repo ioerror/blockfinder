@@ -1,14 +1,12 @@
 #!/usr/bin/python
-import blockfinder
 import unittest
 import os
 import shutil
 import tempfile
 
-try:
-    import ipaddr
-except ImportError:
-    from embedded_ipaddr import ipaddr
+import blockfinder
+from blockfinder import ipaddr
+
 
 class BaseBlockfinderTest(unittest.TestCase):
     def setUp(self):
@@ -69,8 +67,8 @@ class CheckBlockFinder(BaseBlockfinderTest):
                 ('MM', ['203.81.64.0/19', '203.81.160.0/20']),
                 ('KP', ['175.45.176.0/22']))
         for cc, values in known_ipv4_assignments:
-            expected = [(int(ipaddr.IPv4Network(network_str).network),
-                    int(ipaddr.IPv4Network(network_str).broadcast))
+            expected = [(int(ipaddr.IPv4Network(network_str).network_address),
+                    int(ipaddr.IPv4Network(network_str).broadcast_address))
                     for network_str in values]
             result = self.database_cache.fetch_assignments('ipv4', cc)
             self.assertEqual(result, expected)
@@ -78,8 +76,8 @@ class CheckBlockFinder(BaseBlockfinderTest):
     def test_ipv6_bf(self):
         known_ipv6_assignments = ['2001:200::/35', '2001:200:2000::/35',
                                   '2001:200:4000::/34', '2001:200:8000::/33']
-        expected = [(int(ipaddr.IPv6Network(network_str).network),
-                int(ipaddr.IPv6Network(network_str).broadcast))
+        expected = [(int(ipaddr.IPv6Network(network_str).network_address),
+                int(ipaddr.IPv6Network(network_str).broadcast_address))
                 for network_str in known_ipv6_assignments]
         result = self.database_cache.fetch_assignments('ipv6', 'JP')
         self.assertEqual(result, expected)

@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 #
 # For the people of Smubworld!
-import urllib2
 import os
 import time
 import optparse
@@ -10,14 +9,20 @@ import sys
 import sqlite3
 import hashlib
 import gzip
-import ConfigParser
 import zipfile
 import re
 
-try:
-    import ipaddr
-except ImportError:
+if sys.version_info[0] >= 3:
+    import configparser
+    import ipaddress as ipaddr
+    from urllib.request import (urlopen, Request)
+    from urllib.error import URLError
+    long = int
+else:
+    import ConfigParser as configparser
+    from urllib2 import (urlopen, Request, URLError)
     from embedded_ipaddr import ipaddr
+    ipaddr.ip_address = ipaddr.IPAddress
 
 is_win32 = (sys.platform == "win32")
 
@@ -55,16 +60,16 @@ class DatabaseCache:
             connection could be established, False otherwise. """
         if not os.path.exists(self.cache_dir):
             if self.verbose:
-                print "Initializing the cache directory..."
+                print("Initializing the cache directory...")
             os.mkdir(self.cache_dir)
         if os.path.exists(self.db_path):
             cache_version = self.get_db_version()
             if not cache_version:
                 cache_version = "0.0.1"
             if cache_version != self.db_version:
-                print("The existing database cache uses version %s, "
+                print(("The existing database cache uses version %s, "
                         "not the expected %s." % (cache_version,
-                        self.db_version))
+                        self.db_version)))
                 return False
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
@@ -72,10 +77,10 @@ class DatabaseCache:
         return True
 
     def __get_default_config_file_obj(self):
-        open_flags = 'rb+'
+        open_flags = 'r+'
         file_path = os.path.join(self.cache_dir, 'db.cfg')
         if not os.path.exists(file_path):
-            open_flags = 'wb+'
+            open_flags = 'w+'
         return open(file_path, open_flags)
 
     def _get_db_config(self, file_obj=None):
@@ -84,7 +89,7 @@ class DatabaseCache:
             configuration file. """
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
-        config = ConfigParser.SafeConfigParser()
+        config = configparser.SafeConfigParser()
         config.readfp(file_obj)
         file_obj.close()
         return config
@@ -278,23 +283,23 @@ class DownloaderParser:
         filename = url.split('/')[-1]
         if self.verbose:
             print(url)
-        req = urllib2.Request(url)
+        req = Request(url)
         if self.user_agent:
             req.add_header('User-Agent', self.user_agent)
         # TODO Allow use of a proxy.
         #req.set_proxy(host, type)
         try:
-            fetcher = urllib2.urlopen(req)
-        except urllib2.URLError as err:
+            fetcher = urlopen(req)
+        except URLError as err:
             msg = "An error occurred while attempting to cache file from:"
-            print("%s\n\t%s\n\t%s" % (msg, url, str(err)))
+            print(("%s\n\t%s\n\t%s" % (msg, url, str(err))))
             return
         length_header = fetcher.headers.get("Content-Length")
         expected_bytes = -1
         if length_header:
             expected_bytes = int(length_header)
-            print("Fetching %d kilobytes" %
-                    round(float(expected_bytes / 1024), 2))
+            print(("Fetching %d kilobytes" %
+                    round(float(expected_bytes / 1024), 2)))
         download_started = time.time()
         output_file = open(os.path.join(self.cache_dir, filename), "wb")
         received_bytes, seconds_elapsed = 0, 0
@@ -306,9 +311,9 @@ class DownloaderParser:
             chunk = fetcher.read(1024)
             if len(chunk) == 0:
                 if expected_bytes >= 0 and received_bytes != expected_bytes:
-                    print("Expected %s bytes, only received %s" %
-                            (expected_bytes, received_bytes))
-                print ""
+                    print(("Expected %s bytes, only received %s" %
+                            (expected_bytes, received_bytes)))
+                print("")
                 break
             received_bytes += len(chunk)
             output_file.write(chunk)
@@ -322,7 +327,8 @@ class DownloaderParser:
           columns = 80  # but not really important.
           EOL = "\r"
         else:
-          rows, columns = map(int, os.popen('stty size', 'r').read().split())
+          rows, columns = list(map(int, os.popen('stty size', 'r'
+              ).read().split()))
           EOL = "\x1b[G"
         if seconds_elapsed == 0:
             seconds_elapsed = 1
@@ -384,9 +390,9 @@ class DownloaderParser:
             rir_file.close()
             computed_checksum = str(hashlib.md5(rir_data).hexdigest())
             if expected_checksum != computed_checksum:
-                print("The computed md5 checksum of %s, %s, does *not* "
+                print(("The computed md5 checksum of %s, %s, does *not* "
                         "match the provided checksum %s!" %
-                        (rir_path, computed_checksum, expected_checksum))
+                        (rir_path, computed_checksum, expected_checksum)))
 
     def parse_maxmind_files(self, maxmind_urls=None):
         """ Parse locally cached MaxMind files and insert assignments to the
@@ -399,7 +405,7 @@ class DownloaderParser:
             maxmind_path = os.path.join(self.cache_dir,
                     maxmind_url.split('/')[-1])
             if not os.path.exists(maxmind_path):
-                print "Unable to find %s." % maxmind_path
+                print("Unable to find %s." % maxmind_path)
                 continue
             if maxmind_path.endswith('.zip'):
                 maxmind_zip_path = zipfile.ZipFile(maxmind_path)
@@ -415,7 +421,7 @@ class DownloaderParser:
     def import_maxmind_file(self, maxmind_path):
         self.database_cache.delete_assignments(maxmind_path)
         if not os.path.exists(maxmind_path):
-            print "Unable to find %s." % maxmind_path
+            print("Unable to find %s." % maxmind_path)
             return
         content = open(maxmind_path).read()
         self._parse_maxmind_content(content, maxmind_path, maxmind_path)
@@ -424,7 +430,7 @@ class DownloaderParser:
     def _parse_maxmind_content(self, content, source_type, source_name):
         keys = ['start_str', 'end_str', 'start_num', 'end_num',
                  'country_code', 'country_name']
-        for line in content.split('\n'):
+        for line in content.decode('utf-8').split('\n'):
             if len(line.strip()) == 0 or line.startswith("#"):
                 continue
             line = line.replace('"', '').replace(' ', '').strip()
@@ -433,7 +439,7 @@ class DownloaderParser:
             start_num = int(entry['start_num'])
             end_num = int(entry['end_num'])
             country_code = str(entry['country_code'])
-            start_ipaddr = ipaddr.IPAddress(entry['start_str'])
+            start_ipaddr = ipaddr.ip_address(entry['start_str'])
             if isinstance(start_ipaddr, ipaddr.IPv4Address):
                 num_type = 'ipv4'
             else:
@@ -452,7 +458,7 @@ class DownloaderParser:
             rir_path = os.path.join(self.cache_dir,
                     rir_url.split('/')[-1])
             if not os.path.exists(rir_path):
-                print "Unable to find %s." % rir_path
+                print("Unable to find %s." % rir_path)
                 continue
             for line in open(rir_path, 'r'):
                 if line.startswith("#"):
@@ -467,13 +473,13 @@ class DownloaderParser:
                 if num_type == 'asn':
                     start_num = end_num = int(entry['start'])
                 elif num_type == 'ipv4':
-                    start_num = int(ipaddr.IPAddress(entry['start']))
-                    end_num = start_num + long(entry['value']) - 1
+                    start_num = int(ipaddr.IPv4Address(entry['start']))
+                    end_num = start_num + int(entry['value']) - 1
                 elif num_type == 'ipv6':
                     network_str = entry['start'] + '/' + entry['value']
                     network_ipaddr = ipaddr.IPv6Network(network_str)
-                    start_num = int(network_ipaddr.network)
-                    end_num = int(network_ipaddr.broadcast)
+                    start_num = int(network_ipaddr.network_address)
+                    end_num = int(network_ipaddr.broadcast_address)
                 self.database_cache.insert_assignment(start_num,
                         end_num, num_type, country_code, 'rir',
                         source_name)
@@ -489,7 +495,7 @@ class DownloaderParser:
             lir_path = os.path.join(self.cache_dir,
                     lir_url.split('/')[-1])
             if not os.path.exists(lir_path):
-                print "Unable to find %s." % lir_path
+                print("Unable to find %s." % lir_path)
                 continue
             if lir_path.endswith('.gz'):
                 lir_file = gzip.open(lir_path)
@@ -501,7 +507,7 @@ class DownloaderParser:
             entry = False
             num_type = ""
             for line in lir_file:
-                line = line.replace("\n", "")
+                line = line.decode('utf-8', errors='ignore').replace("\n", "")
                 if line == "":
                     entry = False
                     start_num, end_num, country_code, num_type = 0, 0, "", ""
@@ -514,20 +520,20 @@ class DownloaderParser:
                         end_num = int(ipaddr.IPv4Address(end_str))
                         entry = True
                         num_type = 'ipv4'
-                    except Exception, e:
+                    except Exception as e:
                         if self.verbose:
-                            print repr(e), line
+                            print(repr(e), line)
                 elif not entry and "inet6num:" in line:
                     try:
                         network_str = line.replace("inet6num:", "").strip()
                         network_ipaddr = ipaddr.IPv6Network(network_str)
-                        start_num = int(network_ipaddr.network)
-                        end_num = int(network_ipaddr.broadcast)
+                        start_num = int(network_ipaddr.network_address)
+                        end_num = int(network_ipaddr.broadcast_address)
                         entry = True
                         num_type = 'ipv6'
-                    except Exception, e:
+                    except Exception as e:
                         if self.verbose:
-                            print repr(e), line
+                            print(repr(e), line)
                 elif entry and "country:" in line:
                     country_code = line.replace("country:", "").strip()
                     self.database_cache.insert_assignment(start_num,
@@ -566,7 +572,7 @@ class Lookup:
         if not self.knows_country_names():
             return
         country_name = [(key, value) for (key, value) in \
-                self.map_co.items() if value == cc_code]
+                list(self.map_co.items()) if value == cc_code]
         if len(country_name) > 0:
             return country_name[0][0]
 
@@ -574,47 +580,47 @@ class Lookup:
         """ Return the country code for a given country name. """
         if not self.knows_country_names():
             return
-        cc_code = [self.map_co[key] for key in self.map_co.keys() if \
+        cc_code = [self.map_co[key] for key in list(self.map_co.keys()) if \
                 key.upper().startswith(country_name.upper())]
         if len(cc_code) > 0:
             return cc_code[0]
 
     def lookup_ipv6_address(self, lookup_ipaddr):
-        print "Reverse lookup for: " + str(lookup_ipaddr)
+        print("Reverse lookup for: " + str(lookup_ipaddr))
         for source_type in ['maxmind', 'rir', 'lir']:
             cc = self.database_cache.fetch_country_code('ipv6',
                     source_type, int(lookup_ipaddr))
             if cc:
-                print source_type.upper(), "country code:", cc
+                print(source_type.upper(), "country code:", cc)
                 cn = self.get_name_from_country_code(cc)
                 if cn:
-                    print source_type.upper(), "country name:", cn
+                    print(source_type.upper(), "country name:", cn)
 
     def lookup_ipv4_address(self, lookup_ipaddr):
-        print "Reverse lookup for: " + str(lookup_ipaddr)
+        print("Reverse lookup for: " + str(lookup_ipaddr))
         maxmind_cc = self.database_cache.fetch_country_code('ipv4', 'maxmind',
                 int(lookup_ipaddr))
         if maxmind_cc:
-            print 'MaxMind country code:', maxmind_cc
+            print('MaxMind country code:', maxmind_cc)
             maxmind_cn = self.get_name_from_country_code(maxmind_cc)
             if maxmind_cn:
-                print 'MaxMind country name:', maxmind_cn
+                print('MaxMind country name:', maxmind_cn)
         rir_cc = self.database_cache.fetch_country_code('ipv4', 'rir',
                 int(lookup_ipaddr))
         if rir_cc:
-            print 'RIR country code:', rir_cc
+            print('RIR country code:', rir_cc)
             rir_cn = self.get_name_from_country_code(rir_cc)
             if rir_cn:
-                print 'RIR country name:', rir_cn
+                print('RIR country name:', rir_cn)
         else:
-            print 'Not found in RIR db'
+            print('Not found in RIR db')
         lir_cc = self.database_cache.fetch_country_code('ipv4', 'lir',
                 int(lookup_ipaddr))
         if lir_cc:
-            print 'LIR country code:', lir_cc
+            print('LIR country code:', lir_cc)
             lir_cn = self.get_name_from_country_code(lir_cc)
             if lir_cn:
-                print 'LIR country name:', lir_cn
+                print('LIR country name:', lir_cn)
         if maxmind_cc and maxmind_cc != rir_cc:
             print("It appears that the RIR data conflicts with MaxMind's "
                     "data.  MaxMind's data is likely closer to being "
@@ -623,34 +629,34 @@ class Lookup:
     def lookup_ip_address(self, lookup_str):
         """ Return the country code and name for a given ip address. """
         try:
-            lookup_ipaddr = ipaddr.IPAddress(lookup_str)
+            lookup_ipaddr = ipaddr.ip_address(lookup_str)
             if isinstance(lookup_ipaddr, ipaddr.IPv4Address):
                 self.lookup_ipv4_address(lookup_ipaddr)
             elif isinstance(lookup_ipaddr, ipaddr.IPv6Address):
                 self.lookup_ipv6_address(lookup_ipaddr)
             else:
-                print("Did not recognize '%s' as either IPv4 or IPv6 "
-                        "address." % lookup_str)
-        except ValueError, e:
-            print "'%s' is not a valid IP address." % lookup_str
+                print(("Did not recognize '%s' as either IPv4 or IPv6 "
+                        "address." % lookup_str))
+        except ValueError as e:
+            print("'%s' is not a valid IP address." % lookup_str)
 
     def asn_lookup(self, asn):
         asn_cc = self.database_cache.fetch_country_code('asn', 'rir', asn)
         if asn_cc:
-            print "AS country code: %s" % asn_cc
+            print("AS country code: %s" % asn_cc)
             asn_cn = self.get_name_from_country_code(asn_cc)
             if asn_cn:
-                print "AS country name: %s" % asn_cn
+                print("AS country name: %s" % asn_cn)
         else:
-            print "AS%s not found!" % asn
+            print("AS%s not found!" % asn)
 
     def fetch_rir_blocks_by_country(self, request, country):
         result = []
         for (start_num, end_num) in \
                 self.database_cache.fetch_assignments(request, country):
             if request == "ipv4" or request == "ipv6":
-                start_ipaddr = ipaddr.IPAddress(start_num)
-                end_ipaddr = ipaddr.IPAddress(end_num)
+                start_ipaddr = ipaddr.ip_address(start_num)
+                end_ipaddr = ipaddr.ip_address(end_num)
                 result += [str(x) for x in
                         ipaddr.summarize_address_range(
                         start_ipaddr, end_ipaddr)]
@@ -663,13 +669,13 @@ class Lookup:
             look up to which country code(s) the same number ranges are
             assigned in other source types.  Print out the result showing
             similarities and differences. """
-        print("\nLegend:\n"
+        print(("\nLegend:\n"
                "  '<' = found assignment range with country code '%s'\n"
                "  '>' = overlapping assignment range with same country code\n"
                "  '*' = overlapping assignment range, first conflict\n"
                "  '#' = overlapping assignment range, second conflict and "
                "beyond\n  ' ' = neighboring assignment range") % (
-               first_country_code, )
+               first_country_code, ))
         results = self.database_cache.fetch_country_blocks_in_other_sources(
                 first_country_code)
         prev_first_source_type = ''
@@ -679,11 +685,11 @@ class Lookup:
                 second_source_type, second_start_num, second_end_num,
                 second_country_code, num_type) in results:
             if first_source_type != prev_first_source_type:
-                print "\nAssignments in '%s':" % (first_source_type, )
+                print("\nAssignments in '%s':" % (first_source_type, ))
             prev_first_source_type = first_source_type
             if first_start_num != prev_first_start_num:
                 cur_second_country_codes = []
-                print ""
+                print("")
             prev_first_start_num = first_start_num
             marker = ''
             if second_end_num >= first_start_num and \
@@ -701,17 +707,17 @@ class Lookup:
                     marker = '#'
             if num_type.startswith("ip") and \
                     second_start_num == second_end_num:
-                second_range = "%s" % (ipaddr.IPAddress(second_start_num), )
+                second_range = "%s" % (ipaddr.ip_address(second_start_num), )
             elif num_type.startswith("ip") and \
                     second_start_num < second_end_num:
-                second_range = "%s-%s" % (ipaddr.IPAddress(second_start_num),
-                        ipaddr.IPAddress(second_end_num))
+                second_range = "%s-%s" % (ipaddr.ip_address(second_start_num),
+                        ipaddr.ip_address(second_end_num))
             elif second_start_num < second_end_num:
                 second_range = "AS%d-%d" % (second_start_num, second_end_num)
             else:
                 second_range = "AS%d" % (second_start_num, )
-            print "%1s %s %s %s" % (marker, second_country_code, second_range,
-                    second_source_type, )
+            print("%1s %s %s %s" % (marker, second_country_code, second_range,
+                    second_source_type, ))
 
 def split_callback(option, opt, value, parser):
     split_value = value.split(':')
@@ -801,7 +807,7 @@ def main():
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
     if options.hack_the_internet:
-        print "all your bases are belong to us!"
+        print("all your bases are belong to us!")
         sys.exit(0)
     options_dict = vars(options)
     modes = 0
@@ -809,7 +815,7 @@ def main():
                  "init_del", "init_lir", "reload_del", "reload_lir",
                  "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
                  "cc", "cn", "compare", "what_cc"]:
-        if options_dict.has_key(mode) and options_dict.get(mode):
+        if mode in options_dict and options_dict.get(mode):
             modes += 1
     if modes > 1:
         parser.error("only 1 cache or lookup mode allowed")
@@ -820,7 +826,7 @@ def main():
         database_cache.erase_database()
         sys.exit(0)
     if not database_cache.connect_to_database():
-        print "Could not connect to database."
+        print("Could not connect to database.")
         print("You may need to erase it using -e and then reload it "
                 "using -d/-z.  Exiting.")
         sys.exit(1)
@@ -850,53 +856,53 @@ def main():
             country = options.what_cc.upper()
             country_name = lookup.get_name_from_country_code(country)
             if country_name:
-                print("Hmm...%s? That would be %s."
-                      % (options.what_cc, country_name))
+                print(("Hmm...%s? That would be %s."
+                      % (options.what_cc, country_name)))
                 sys.exit(0)
             else:
-                print("Hmm, %s? We're not sure either. Are you sure that's "
-                      "a country code?" % options.what_cc)
+                print(("Hmm, %s? We're not sure either. Are you sure that's "
+                      "a country code?" % options.what_cc))
                 sys.exit(1)
         else:
             country = lookup.get_country_code_from_name(options.cn)
             if not country:
-                print "It appears your search did not match a country."
+                print("It appears your search did not match a country.")
         if country:
             types = ["ipv4", "ipv6", "asn"]
             if hasattr(options, 'type_filter') and options.type_filter.lower() in types:
                 types = [options.type_filter.lower()]
             for request in types:
-                print "\n".join(lookup.fetch_rir_blocks_by_country(\
-                        request, country))
+                print("\n".join(lookup.fetch_rir_blocks_by_country(\
+                        request, country)))
     elif options.compare:
         print("Comparing assignments with overlapping assignments in other "
                "data sources...")
         lookup.lookup_countries_in_different_source(options.compare)
     elif options.init_maxmind or options.reload_maxmind:
         if options.init_maxmind:
-            print "Downloading Maxmind GeoIP files..."
+            print("Downloading Maxmind GeoIP files...")
             downloader_parser.download_maxmind_files()
-        print "Importing Maxmind GeoIP files..."
+        print("Importing Maxmind GeoIP files...")
         downloader_parser.parse_maxmind_files()
     elif options.import_maxmind:
-        print "Importing Maxmind GeoIP files..."
+        print("Importing Maxmind GeoIP files...")
         downloader_parser.import_maxmind_file(options.import_maxmind)
     elif options.init_del or options.reload_del:
         if options.init_del:
-            print "Downloading RIR files..."
+            print("Downloading RIR files...")
             downloader_parser.download_rir_files()
-            print "Verifying RIR files..."
+            print("Verifying RIR files...")
             downloader_parser.verify_rir_files()
-        print "Importing RIR files..."
+        print("Importing RIR files...")
         downloader_parser.parse_rir_files()
     elif options.init_lir or options.reload_lir:
         if options.init_lir:
-            print "Downloading LIR delegation files..."
+            print("Downloading LIR delegation files...")
             downloader_parser.download_lir_files()
-        print "Importing LIR files..."
+        print("Importing LIR files...")
         downloader_parser.parse_lir_files()
     elif options.download_cc:
-        print "Downloading country code file..."
+        print("Downloading country code file...")
         downloader_parser.download_country_code_file()
     database_cache.commit_and_close_database()
 
