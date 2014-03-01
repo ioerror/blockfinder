@@ -249,7 +249,7 @@ class DownloaderParser:
         ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
     """
 
-    COUNTRY_CODE_URL = "http://www.iso.org/iso/list-en1-semic-3.txt"
+    COUNTRY_CODE_URL = "http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm"
 
     def download_maxmind_files(self):
         """ Download all LIR delegation urls. """
@@ -553,7 +553,7 @@ class Lookup:
         """ Return a dictionary mapping country name to the country
             code. """
         country_code_path = os.path.join(self.cache_dir,
-                'list-en1-semic-3.txt')
+                'country_names_and_code_elements_txt-temp.htm')
         if not os.path.exists(country_code_path):
             return
         self.map_co = {}
