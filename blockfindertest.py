@@ -51,6 +51,16 @@ class CheckReverseLookup(BaseBlockfinderTest):
                 'lir', int(ipaddr.IPv4Address('80.16.151.180'))), 'IT')
         self.assertEqual(self.database_cache.fetch_country_code('ipv4',
                 'lir', int(ipaddr.IPv4Address('213.95.6.32'))), 'DE')
+        # Check capitalization.
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4',
+                'lir', int(ipaddr.IPv4Address('128.0.0.0'))), 'RO')
+        # Check comment-stripping.
+        # EU # Country is really world wide
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4',
+                'lir', int(ipaddr.IPv4Address('159.245.0.0'))), 'EU')
+        # SE# RU UA
+        self.assertEqual(self.database_cache.fetch_country_code('ipv4',
+                'lir', int(ipaddr.IPv4Address('85.195.129.0'))), 'SE')
 
     def test_lir_ipv6_lookup(self):
         self.assertEqual(self.database_cache.fetch_country_code('ipv6',
