@@ -507,7 +507,7 @@ class DownloaderParser:
             entry = False
             num_type = ""
             for line in lir_file:
-                line = line.decode('utf-8', errors='ignore').replace("\n", "")
+                line = line.decode('utf-8', 'ignore').replace("\n", "")
                 if line == "":
                     entry = False
                     start_num, end_num, country_code, num_type = 0, 0, "", ""
