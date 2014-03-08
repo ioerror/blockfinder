@@ -2,6 +2,7 @@
 import unittest
 import os
 import shutil
+import sys
 import tempfile
 
 import blockfinder
@@ -84,8 +85,11 @@ class CheckBlockFinder(BaseBlockfinderTest):
 
 
 if __name__ == '__main__':
+    failures = 0
     for test_class in [CheckReverseLookup, CheckBlockFinder]:
         test_suite = unittest.makeSuite(test_class)
         test_runner = unittest.TextTestRunner(verbosity=2)
-        test_runner.run(test_suite)
-
+        results = test_runner.run(test_suite)
+        failures += len(results.errors)
+        failures += len(results.failures)
+    sys.exit(failures)
