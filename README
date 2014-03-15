@@ -15,7 +15,7 @@ fetching the following lists of allocations:
 
 The list of ISO codes is ISO 3166-1 as found here:
 
-    http://www.iso.org/iso/list-en1-semic-3.txt
+    http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm
     http://en.wikipedia.org/wiki/ISO_3166-1
 
 blockfinder has two methods of operation:
