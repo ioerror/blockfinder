@@ -1,12 +1,13 @@
 Source: blockfinder
 Priority: extra
-Section: comm
+Section: python
 Maintainer: Jacob Appelbaum <jacob@appelbaum.net>
-Standards-Version: 3.8.4.0
-
+Build-Depends: python-all (>= 2.6), debhelper (>= 9)
+Standards-Version: 3.9.5
+ 
 Package: blockfinder
 Architecture: any
-Depends: ${shlibs:Depends}, python2.6
-Description: Blockfinder enumerates network information for countries
- Blockfinder enumerates network information for countries
+Depends: ${shlibs:Depends}, ${python:Depends}, python2.6, python-ipaddr
+Description: enumerates network information for countries
+ blockfinder enumerates network information for countries
  .

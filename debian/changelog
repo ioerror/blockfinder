@@ -1,5 +1,5 @@
-blockfinder (0.1) unstable; urgency=low
+blockfinder (3.14159-1) unstable; urgency=low
 
-  * Initial Release.
+  * Initial Release. (Closes: #741677)
 
- -- Jacob Appelbaum <jacob@appelbaum.net>  Tue, 29 Jun 2010 00:41:55 +0200
+ -- Jacob Appelbaum <jacob@appelbaum.net>  Sat, 15 Mar 2014 15:22:21 +0000
