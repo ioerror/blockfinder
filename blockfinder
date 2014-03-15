@@ -11,6 +11,8 @@ import hashlib
 import gzip
 import zipfile
 import re
+import bz2
+from math import log
 
 if sys.version_info[0] >= 3:
     import configparser
@@ -74,6 +76,8 @@ class DatabaseCache:
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
         self.create_assignments_table()
+        self.create_asn_description_table()
+        self.create_asn_assignments_table()
         return True
 
     def __get_default_config_file_obj(self):
@@ -134,11 +138,48 @@ class DatabaseCache:
         self.cursor.execute(sql)
         self.conn.commit()
 
+    def create_asn_description_table(self):
+        """ Create the assignments table that stores all the descriptions
+            associated with ASNs. """
+        sql = ('CREATE TABLE IF NOT EXISTS asn_descriptions(as_num INT, '
+               'source_name TEXT, description TEXT)')
+        self.cursor.execute(sql)
+        sql = ('CREATE INDEX IF NOT EXISTS DescriptionsByASN ON '
+               'asn_descriptions ( as_num )')
+        self.cursor.execute(sql)
+        self.conn.commit()
+
+    def create_asn_assignments_table(self):
+        """ Create the assignments table that stores the assignments from
+            IPv4 to ASN """
+        #XXX: IPv6 not yet supported. (Not available from routeviews?)
+        sql = ('CREATE TABLE IF NOT EXISTS asn_assignments(start_hex TEXT, '
+               'next_start_hex TEXT, num_type TEXT, as_num INT, '
+               'source_type TEXT, source_name TEXT, PRIMARY KEY(start_hex, '
+               'next_start_hex))')
+        self.cursor.execute(sql)
+        sql = ('CREATE INDEX IF NOT EXISTS ASNEntriesByStartHex on '
+              'asn_assignments ( start_hex )')
+        self.cursor.execute(sql)
+        self.conn.commit()
+
     def delete_assignments(self, source_type):
         """ Delete all assignments from the database cache matching a
             given source type ("rir", "lir", etc.). """
         sql = 'DELETE FROM assignments WHERE source_type = ?'
         self.cursor.execute(sql, (source_type, ))
+        self.conn.commit()
+
+    def delete_asn_descriptions(self):
+        """ Delete all asn descriptions from the database cache. """
+        sql = 'DELETE FROM asn_descriptions'
+        self.cursor.execute(sql)
+        self.conn.commit()
+
+    def delete_asn_assignments(self):
+        """ Delete all the bgp netblock to as entries """
+        sql = 'DELETE FROM asn_assignments'
+        self.cursor.execute(sql)
         self.conn.commit()
 
     def insert_assignment(self, start_num, end_num, num_type,
@@ -156,6 +197,26 @@ class DatabaseCache:
             next_start_hex = '%09x' % (end_num + 1)
         self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
                 country_code, source_type, source_name))
+
+    def insert_asn_description(self, asn, source_name, description):
+        sql = ('INSERT INTO asn_descriptions (as_num, source_name, description) '
+               'VALUES (?, ?, ?)')
+        self.cursor.execute(sql, (asn, source_name, unicode(description)))
+
+    def insert_asn_assignment(self, start_num, end_num, num_type, asn,
+            source_type, source_name):
+        #XXX: This is sqlite specific syntax
+        sql = ('INSERT OR IGNORE INTO asn_assignments (start_hex, '
+               'next_start_hex, num_type, as_num, source_type, source_name) '
+               'VALUES (?, ?, ?, ?, ?, ?)')
+        if num_type == 'ipv6':
+            start_hex = '%033x' % start_num
+            next_start_hex = '%033x' % (end_num + 1)
+        else:
+            start_hex = '%09x' % start_num
+            next_start_hex = '%09x' % (end_num + 1)
+        self.cursor.execute(sql, (start_hex, next_start_hex, num_type, asn,
+                    source_type, source_name))
 
     def commit_changes(self):
         """ Commit changes, e.g., after inserting assignments into the
@@ -222,6 +283,38 @@ class DatabaseCache:
                     long(row[5], 16) - 1, str(row[6]), str(row[7])))
         return result
 
+    def fetch_org_by_ip_address(self, lookup_str, num_type):
+        if num_type == 'ipv4':
+            lookup_hex = '%09x' % long(int(lookup_str))
+        else:
+            lookup_hex = '%033x' % long(int(lookup_str))
+        sql = ('SELECT asn_descriptions.as_num, asn_descriptions.description, '
+               'asn_assignments.start_hex, asn_assignments.next_start_hex '
+               'FROM asn_descriptions JOIN asn_assignments ON '
+               'asn_assignments.as_num = asn_descriptions.as_num '
+               'WHERE num_type = ? AND start_hex <= ? AND next_start_hex > ?')
+        self.cursor.execute(sql, (num_type, lookup_hex, lookup_hex))
+        row = self.cursor.fetchall()
+        if row:
+            return row
+
+    def fetch_org_by_ip_range(self, lookup_start, lookup_end, num_type):
+        if num_type == 'ipv4':
+            lookup_start_hex = '%09x' % long(int(lookup_start))
+            lookup_end_hex = '%09x' % long(int(lookup_end))
+        else:
+            lookup_start_hex = '%033x' % long(int(lookup_start))
+            lookup_end_hex = '%033x' % long(int(lookup_end))
+
+        sql = ('SELECT asn_descriptions.as_num, asn_descriptions.description, '
+               'asn_assignments.start_hex, asn_assignments.next_start_hex '
+               'FROM asn_descriptions JOIN asn_assignments ON '
+               'asn_assignments.as_num = asn_descriptions.as_num '
+               'WHERE num_type = ? AND start_hex >= ? AND next_start_hex <= ?')
+        self.cursor.execute(sql, (num_type, lookup_start_hex, lookup_end_hex))
+        row = self.cursor.fetchall()
+        if row:
+            return row
 
 class DownloaderParser:
     def __init__(self, cache_dir, database_cache, user_agent,
@@ -251,6 +344,12 @@ class DownloaderParser:
 
     COUNTRY_CODE_URL = "http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm"
 
+    ASN_DESCRIPTION_URL = "http://www.cidr-report.org/as2.0/autnums.html"
+
+    ASN_ASSIGNMENT_URLS = """
+        http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2
+    """
+
     def download_maxmind_files(self):
         """ Download all LIR delegation urls. """
         for maxmind_url in self.MAXMIND_URLS.split():
@@ -272,6 +371,16 @@ class DownloaderParser:
         """ Download and save the latest semicolon-separated open country
             codes file. """
         self._download_to_cache_dir(self.COUNTRY_CODE_URL)
+
+    def download_asn_description_file(self):
+        """ Download and save the latest ASN to Name report from
+            cidr-report.org"""
+        self._download_to_cache_dir(self.ASN_DESCRIPTION_URL)
+
+    def download_asn_assignment_files(self):
+        """ Download and save the latest routing snapshots. """
+        for assignment_url in self.ASN_ASSIGNMENT_URLS.split():
+            self._download_to_cache_dir(assignment_url)
 
     def _download_to_cache_dir(self, url):
         """ Fetch a resource (with progress bar) and store contents to the
@@ -540,6 +649,58 @@ class DownloaderParser:
                             end_num, num_type, country_code, 'lir', 'ripencc')
         self.database_cache.commit_changes()
 
+    def parse_asn_description_file(self, asn_description_url=None):
+        """ Parse locally cached ASN to Description mappings and insert
+            mappings to the local database cache, overwriting any existing ASN
+            to Name assignments. """
+        if not asn_description_url:
+            asn_description_url = self.ASN_DESCRIPTION_URL
+        self.database_cache.delete_asn_descriptions()
+        asn_description_path = os.path.join(self.cache_dir,
+                asn_description_url.split('/')[-1])
+        asn_descriptions = open(asn_description_path)
+        source_name = 'cidr_report'
+        skiplen = len('<a href="/cgi-bin/as-report?as=AS')
+        for line in asn_descriptions:
+            try:
+                asn, _name = line[skiplen:].split('&view=2.0')
+                description = _name.split('</a>')[1].strip()
+                self.database_cache.insert_asn_description(asn, source_name,
+                        description)
+            except ValueError:
+                pass
+        self.database_cache.commit_changes()
+        asn_descriptions.close()
+
+    def parse_asn_assignment_files(self, asn_assignment_urls=None):
+        if not asn_assignment_urls:
+            asn_assignment_urls = self.ASN_ASSIGNMENT_URLS.split()
+        self.database_cache.delete_asn_assignments()
+        for asn_assignment_url in asn_assignment_urls:
+            asn_assignment_path = os.path.join(self.cache_dir,
+                    asn_assignment_url.split('/')[-1])
+            if not os.path.exists(asn_assignment_path):
+                print("Unable to find %s." % asn_assignment_path)
+                continue
+            if asn_assignment_path.endswith('.bz2'):
+                b = bz2.BZ2File(asn_assignment_path)
+                for line in b:
+                    if line.startswith("*"):
+                        l = line.split()
+                        netblock, path = l[1], l[6:-1]
+                        nexthop, metric, locprf, weight = l[2],l[3],l[4],l[5]
+
+                        network = ipaddr.IPNetwork(netblock)
+                        #XXX add support for other sources too
+                        source_type = 'bgp_snapshot'
+                        source_name = 'routeviews'
+
+                        if isinstance(network, ipaddr.IPv4Network): num_type = "ipv4"
+                        else: num_type = "ivp6"
+
+                        self.database_cache.insert_asn_assignment(int(network.network),
+                                int(network.broadcast), num_type, path[-1],
+                                source_type, source_name)
 
 class Lookup:
     def __init__(self, cache_dir, database_cache, verbose=False):
@@ -719,6 +880,54 @@ class Lookup:
             print("%1s %s %s %s" % (marker, second_country_code, second_range,
                     second_source_type, ))
 
+    def _get_network_string_from_range(self, end, start, bits=32):
+        start, end = int(start,16), int(end,16)
+        netbits = bits - int(log(end - start,2))
+        return ipaddr.IPNetwork("%s/%d" % (ipaddr.IPAddress(start), netbits))
+
+    def lookup_org_by_ip(self, lookup_str):
+        """ Return the ASN and AS Description by IP """
+        try:
+            lookup_ipaddr = ipaddr.IPAddress(lookup_str)
+            if isinstance(lookup_ipaddr, ipaddr.IPv4Address):
+                num_type = 'ipv4'
+                len_bits = 32
+            elif isinstance(lookup_ipaddr, ipaddr.IPv6Address):
+                num_type = 'ipv6'
+                len_bits = 128
+            else:
+                raise ValueError
+            rs = self.database_cache.fetch_org_by_ip_address(lookup_ipaddr, num_type)
+            for r in rs:
+                network = self._get_network_string_from_range(r[3],r[2], bits=len_bits)
+                print("%s in %s announced by AS%s - %s" % (lookup_str, network, r[0], r[1]))
+        except ValueError:
+            print("'%s' is not a valid IP address." % lookup_str)
+        except TypeError:
+            print("Did not find any matching announcements containing %s." % lookup_str)
+
+    def lookup_org_by_range(self, start_range, end_range):
+        output_str = "%s announced by AS%s - %s"
+        try:
+            a = ipaddr.IPAddress(start_range)
+            b = ipaddr.IPAddress(end_range)
+            if isinstance(a, ipaddr.IPv4Address) and isinstance(b, ipaddr.IPv4Address):
+                num_type = 'ipv4'
+                len_bits = 32
+            elif isinstance(a, ipaddr.IPv6Address) and isinstance(b, ipaddr.IPv6Address):
+                num_type = 'ipv6'
+                len_bits = 128
+            else:
+                raise ValueError
+            rs = self.database_cache.fetch_org_by_ip_range(min(a,b), max(a,b), num_type)
+            for r in rs:
+                network = self._get_network_string_from_range(r[3],r[2], bits=len_bits)
+                print(output_str % (network, r[0], r[1]))
+        except ValueError:
+            print("%s %s is not a valid IP range." % (start_range, end_range))
+        except TypeError:
+            print("Did not find any matching announcements in range %s %s." % (start_range, end_range))
+
 def split_callback(option, opt, value, parser):
     split_value = value.split(':')
     setattr(parser.values, option.dest, split_value[0])
@@ -773,6 +982,18 @@ def main():
             dest="download_cc", help="download country codes file")
     group.add_option("-e", "--erase-cache", action="store_true",
             dest="erase_cache", help="erase the local database cache")
+    group.add_option("-j", "--init-asn-descriptions", action="store_true",
+            dest="init_asn_descriptions",
+            help=("initialize or update asn description information"))
+    group.add_option("-k", "--reload-asn-descriptions", action="store_true",
+            dest="reload_asn_descriptions",
+            help=("Use existing asn descriptions to update database"))
+    group.add_option("-y", "--init-asn-assignments", action="store_true",
+            dest="init_asn_assignments",
+            help=("initialize or update asn assignment information"))
+    group.add_option("-u", "--reload-asn-assignments", action="store_true",
+            dest="reload_asn_assignments",
+            help=("Use existing asn assignments to update database"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Lookup modes",
             "Pick at most one of these modes to look up data in the "
@@ -803,6 +1024,19 @@ def main():
                   "can take some time and produce some long output"))
     group.add_option("-w", "--what-country", action="store", dest="what_cc",
             help=("look up country name for specified country code"))
+    group.add_option("--lookup-org-by-ip", "--lookup-org-by-ip",
+            action="store", dest="lookup_org_by_ip",
+            help=("look up ASN and AS Description for an IP address"))
+    group.add_option("--lookup-org-by-range", "--lookup-org-by-range",
+            action="store_true", dest="lookup_org_by_range",
+            help=("look up announced networks in a range of addresses; "
+                  "requires --range-start and --range-end to be set"))
+    group.add_option("--range-start", "--range-start",
+            action="store", dest="range_start",
+            help=("Specify the start of a range of addresses"))
+    group.add_option("--range-end", "--range-end",
+            action="store", dest="range_end",
+            help=("Specify the end of a range of addresses"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
@@ -814,7 +1048,10 @@ def main():
     for mode in ["init_maxmind", "reload_maxmind", "import_maxmind",
                  "init_del", "init_lir", "reload_del", "reload_lir",
                  "download_cc", "erase_cache", "ipv4", "ipv6", "asn",
-                 "cc", "cn", "compare", "what_cc"]:
+                 "cc", "cn", "compare", "what_cc", "init_asn_descriptions",
+                 "reload_asn_descriptions", "init_asn_assignments",
+                 "reload_asn_assignments", "lookup_org_by_ip",
+                 "lookup_org_by_range"]:
         if mode in options_dict and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -841,6 +1078,14 @@ def main():
                     "probably want to update them.")
     if options.asn:
         lookup.asn_lookup(options.asn)
+    elif options.lookup_org_by_ip:
+        lookup.lookup_org_by_ip(options.lookup_org_by_ip)
+    elif options.lookup_org_by_range:
+        if not (options.range_start and options.range_end):
+            print("You must specify the start and end addresses; "
+                  "see --range-start and --range-end")
+        else:
+            lookup.lookup_org_by_range(options.range_start, options.range_end)
     elif options.ipv4:
         lookup.lookup_ip_address(options.ipv4)
     elif options.ipv6:
@@ -904,6 +1149,18 @@ def main():
     elif options.download_cc:
         print("Downloading country code file...")
         downloader_parser.download_country_code_file()
+    elif options.init_asn_descriptions or options.reload_asn_descriptions:
+        if options.init_asn_descriptions:
+            print("Downloading ASN Descriptions...")
+            downloader_parser.download_asn_description_file()
+        print("Importing ASN Descriptions...")
+        downloader_parser.parse_asn_description_file()
+    elif options.init_asn_assignments or options.reload_asn_assignments:
+        if options.init_asn_assignments:
+            print("Downloading ASN Assignments...")
+            downloader_parser.download_asn_assignment_files()
+        print("Importing ASN Assignments...")
+        downloader_parser.parse_asn_assignment_files()
     database_cache.commit_and_close_database()
 
 if __name__ == "__main__":
