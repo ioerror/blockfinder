@@ -23,8 +23,11 @@ if sys.version_info[0] >= 3:
 else:
     import ConfigParser as configparser
     from urllib2 import (urlopen, Request, URLError)
-    from embedded_ipaddr import ipaddr
-    ipaddr.ip_address = ipaddr.IPAddress
+    try:
+      from embedded_ipaddr import ipaddr
+      ipaddr.ip_address = ipaddr.IPAddress
+    except:
+      import ipaddr
 
 is_win32 = (sys.platform == "win32")
 
