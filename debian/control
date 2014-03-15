@@ -6,7 +6,7 @@ Build-Depends: python-all (>= 2.6), debhelper (>= 9)
 Standards-Version: 3.9.5
  
 Package: blockfinder
-Architecture: any
+Architecture: all
 Depends: ${misc:Depends}, ${shlibs:Depends}, python, python-ipaddr
 Description: enumerates network information for countries
  blockfinder enumerates network information for countries
