@@ -316,6 +316,95 @@ class DatabaseCache:
         if row:
             return row
 
+    def _concatenate_and_write(self, records, write_function=None, record_filter=None, bits=32):
+        netblocks = []
+        for row in records:
+            try:
+                start_hex, next_start_hex, record = \
+                    long(row[0], 16), long(row[1], 16), str(row[2])
+                nb = bits - int(log(next_start_hex - start_hex, 2))
+                net = ipaddr.IPNetwork("%s/%d" %
+                        (ipaddr.IPAddress(start_hex),nb))
+                if callable(record_filter):
+                    record = record_filter(record)
+            except ValueError:
+                continue
+
+            # Concatenate adjacent blocks of the same country
+            if netblocks and netblocks[-1][1] == record:
+                pn = netblocks[-1][0]
+                nb = bits - int(log(int(net.network) + \
+                        int(net.numhosts) - int(pn.network), 2))
+                netblocks[-1] = (ipaddr.IPNetwork("%s/%d" % \
+                            (pn.network, nb)), record)
+
+            # if the adjacent blocks aren't the same country,
+            # write the last block out to csv and add the new block
+            # to the list for possible concatenation
+            elif netblocks:
+                prev_n,prev_record = netblocks.pop()
+                if write_function:
+                    write_function(prev_n,prev_record)
+                netblocks.append((net,record))
+
+            # this is the base case
+            else:
+                netblocks.append((net,record))
+
+    def export_asn(self, filename, num_type):
+        """ Export assignments to the CSV format used to build the geoip-database asn lookup """
+        sql = ('SELECT start_hex, next_start_hex, as_num '
+               'FROM asn_assignments WHERE num_type = ? ORDER BY start_hex')
+        self.cursor.execute(sql, (num_type,))
+        try:
+            f = open(filename, 'w')
+        except IOError:
+            print("Unable to open %s" % filename)
+            return
+
+        def write_csv_line(network, asn):
+            #XXX: wild guess
+            f.write(""""%s","%s","%d","%d","%s"\n""" % (network.network,
+                        network.broadcast, int(network.network),
+                        int(network.broadcast), asn))
+        if num_type == 'ipv6': ip_bits = 128
+        elif num_type == 'ipv4': ip_bits = 32
+        else: return
+
+        self._concatenate_and_write(self.cursor, write_function=write_csv_line,
+                bits=ip_bits)
+        f.close()
+
+    def export_geoip(self, lookup, filename, num_type):
+        """ Export assignments to the CSV format used to build the
+            geoip-database package """
+
+        sql = ('SELECT start_hex, next_start_hex, country_code '
+                'FROM assignments WHERE num_type = ? ORDER BY start_hex')
+        self.cursor.execute(sql, (num_type,))
+
+        try:
+            f = open(filename, 'w')
+        except IOError:
+            print("Unable to open %s" % filename)
+            return
+
+        def write_csv_line(network, country_code):
+            country_name = lookup.get_name_from_country_code(country_code)
+            if country_name:
+                country_name = country_name.split("#")[0].strip() #Drop comments
+            f.write(""""%s","%s","%d","%d","%s","%s"\n""" % (network.network,
+                        network.broadcast, int(network.network),
+                        int(network.broadcast), country_code, country_name))
+
+        if num_type == 'ipv6': ip_bits = 128
+        elif num_type == 'ipv4': ip_bits = 32
+        else: return
+
+        self._concatenate_and_write(self.cursor, write_function=write_csv_line,
+                record_filter=str.upper, bits=ip_bits)
+        f.close()
+
 class DownloaderParser:
     def __init__(self, cache_dir, database_cache, user_agent,
             verbose=False):
@@ -1038,6 +1127,23 @@ def main():
             action="store", dest="range_end",
             help=("Specify the end of a range of addresses"))
     parser.add_option_group(group)
+    group = optparse.OptionGroup(parser, "Export modes")
+    group.add_option("--export-geoip", "--export-geoip", action="store_true",
+            dest="export",
+            help=("export the lookup database to GeoIPCountryWhois.csv and "
+                  "v6.csv files in the format used to build the debian "
+                  "package geoip-database"))
+    group.add_option("--geoip-v4-file", "--geoip-v4-file", action="store",
+            dest="geoip_v4_filename",
+            help=("The filename to write the IPv4 GeoIP dataset to"))
+    group.add_option("--geoip-v6-file", "--geoip-v6-file", action="store",
+            dest="geoip_v6_filename",
+            help=("The filename to write the IPv6 GeoIP dataset to"))
+    group.add_option("--geoip-asn-file", "--geoip-asn-file", action="store",
+            dest="geoip_asn_filename",
+            help=("The filename to write the IPv4 GeoIP ASNum dataset to"))
+    parser.add_option_group(group)
+
     group = optparse.OptionGroup(parser, "Network modes")
     (options, args) = parser.parse_args()
     if options.hack_the_internet:
@@ -1051,7 +1157,7 @@ def main():
                  "cc", "cn", "compare", "what_cc", "init_asn_descriptions",
                  "reload_asn_descriptions", "init_asn_assignments",
                  "reload_asn_assignments", "lookup_org_by_ip",
-                 "lookup_org_by_range"]:
+                 "lookup_org_by_range", "export"]:
         if mode in options_dict and options_dict.get(mode):
             modes += 1
     if modes > 1:
@@ -1161,6 +1267,19 @@ def main():
             downloader_parser.download_asn_assignment_files()
         print("Importing ASN Assignments...")
         downloader_parser.parse_asn_assignment_files()
+    elif options.export:
+        v4_file = options.geoip_v4_filename or "GeoIPCountryWhois.csv"
+        v6_file = options.geoip_v6_filename or "v6.csv"
+        asn_file = options.geoip_asn_filename or "GeoIPASNum.csv"
+        print("Exporting GeoIP IPv4 to %s" % v4_file)
+        database_cache.export_geoip(lookup, v4_file, 'ipv4')
+        print("Exporting GeoIP IPv6 to %s" % v6_file)
+        database_cache.export_geoip(lookup, v6_file, 'ipv6')
+        print("Exporting GeoIP IPv4 ASNum to %s" % asn_file)
+        database_cache.export_asn(asn_file, 'ipv4')
+        #XXX: Unsupported
+        #print("Exporting GeoIP IPv6 ASNum to %s" % asn_file)
+        #database_cache.export_geoip(asn_file, 'ipv6')
     database_cache.commit_and_close_database()
 
 if __name__ == "__main__":
