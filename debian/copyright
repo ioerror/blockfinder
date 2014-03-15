@@ -2,7 +2,6 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: blockfinder
 Upstream-contact: Jacob Appelbaum <jacob@appelbaum.net>
 Source: https://github.com/ioerror/blockfinder
-Upstream Author(s): Jacob Appelbaum <jacob@appelbaum.net>
 
 Files: *
 Copyright: 2010 Jacob Appelbaum <jacob@appelbaum.net>
@@ -30,10 +29,11 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Files: embedded_ipaddr/*
-Copyright: Copyright 2007 Google Inc.
+Copyright: 2007 Google Inc.
 License: Apache 2.0
 
-/usr/share/common-licenses/Apache-2.0
+ On Debian systems, the full text of the Apache License version 2
+ can be found in the file `/usr/share/common-licenses/Apache-2.0'.
 
 Files: debian/*
 Copyright: 2014 Jacob Appelbaum <jacob@appelbaum.net>
