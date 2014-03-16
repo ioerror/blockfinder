@@ -28,6 +28,7 @@ else:
       ipaddr.ip_address = ipaddr.IPAddress
     except:
       import ipaddr
+      ipaddr.ip_address = ipaddr.IPAddress
 
 is_win32 = (sys.platform == "win32")
 
