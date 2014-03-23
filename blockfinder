@@ -731,6 +731,9 @@ def split_callback(option, opt, value, parser):
 def normalize_country_code(country_code):
     """ Normalize country codes a bit by making capitalization consistent and
         removing trailing comments (and other words). """
+    if not country_code:
+        return country_code
+
     country_code = re.match(r'^(\w+)', country_code).group(1)
     return country_code.upper()
 

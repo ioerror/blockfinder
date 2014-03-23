@@ -108,6 +108,7 @@ class NormalizationTest(unittest.TestCase):
         # https://github.com/ioerror/blockfinder/issues/53
         self.assertEqual(normalize_country_code('ro'), 'RO')
         self.assertEqual(normalize_country_code('RO'), 'RO')
+        self.assertEqual(normalize_country_code(''), '')
 
 
 if __name__ == '__main__':
