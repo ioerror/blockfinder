@@ -5,7 +5,7 @@ import shutil
 import tempfile
 
 import blockfinder
-from blockfinder import ipaddr
+from blockfinder import ipaddr, normalize_country_code
 
 
 class BaseBlockfinderTest(unittest.TestCase):
@@ -93,8 +93,25 @@ class CheckBlockFinder(BaseBlockfinderTest):
         self.assertEqual(result, expected)
 
 
+class NormalizationTest(unittest.TestCase):
+    def test_comment_stripping(self):
+        # https://github.com/ioerror/blockfinder/issues/51
+        self.assertEqual(normalize_country_code('EU'), 'EU')
+        self.assertEqual(normalize_country_code(
+                'EU # Country is really world wide'), 'EU')
+        self.assertEqual(normalize_country_code(
+                'DE #AT # IT'), 'DE')
+        self.assertEqual(normalize_country_code(
+                'FR # GF # GP # MQ # RE'), 'FR')
+
+    def test_capitalization(self):
+        # https://github.com/ioerror/blockfinder/issues/53
+        self.assertEqual(normalize_country_code('ro'), 'RO')
+        self.assertEqual(normalize_country_code('RO'), 'RO')
+
+
 if __name__ == '__main__':
-    for test_class in [CheckReverseLookup, CheckBlockFinder]:
+    for test_class in [CheckReverseLookup, CheckBlockFinder, NormalizationTest]:
         test_suite = unittest.makeSuite(test_class)
         test_runner = unittest.TextTestRunner(verbosity=2)
         test_runner.run(test_suite)
