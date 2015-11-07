@@ -199,6 +199,7 @@ class DatabaseCache:
         else:
             start_hex = '%09x' % start_num
             next_start_hex = '%09x' % (end_num + 1)
+        country_code = normalize_country_code(country_code)
         self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
                 country_code, source_type, source_name))
 
@@ -1026,6 +1027,16 @@ def split_callback(option, opt, value, parser):
     setattr(parser.values, option.dest, split_value[0])
     if len(split_value) > 1 and split_value[1] != '':
         setattr(parser.values, 'type_filter', split_value[1])
+
+
+def normalize_country_code(country_code):
+    """ Normalize country codes a bit by making capitalization consistent and
+        removing trailing comments (and other words). """
+    if not country_code:
+        return country_code
+    country_code = re.match(r'^(\w+)', country_code).group(1)
+    return country_code.upper()
+
 
 def main():
     """ Where the magic starts. """
