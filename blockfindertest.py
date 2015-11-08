@@ -6,7 +6,7 @@ import sys
 import tempfile
 
 import blockfinder
-from blockfinder import ipaddr
+from blockfinder import ipaddr, normalize_country_code
 
 
 class BaseBlockfinderTest(unittest.TestCase):
@@ -56,6 +56,17 @@ class CheckReverseLookup(BaseBlockfinderTest):
             (int(ipaddr.IPv4Address('80.16.151.184')), 'IT'),
             (int(ipaddr.IPv4Address('80.16.151.180')), 'IT'),
             (int(ipaddr.IPv4Address('213.95.6.32')), 'DE'),
+
+            # Check capitalization.
+            (int(ipaddr.IPv4Address('128.0.0.0')), 'RO'),
+
+            # Check comment-stripping.
+            # EU # Country is really world wide
+            (int(ipaddr.IPv4Address('159.245.0.0')), 'EU'),
+
+            # SE# RU UA
+            (int(ipaddr.IPv4Address('85.195.129.0')), 'SE'),
+
         )
         for ip, expected_country in ip_expected_co:
             self.assertEqual(method('ipv4', 'lir', ip), expected_country)
@@ -106,9 +117,29 @@ class CheckBlockFinder(BaseBlockfinderTest):
         self.assertEqual(result, expected)
 
 
+class NormalizationTest(unittest.TestCase):
+
+    def test_comment_stripping(self):
+        # https://github.com/ioerror/blockfinder/issues/51
+        self.assertEqual(normalize_country_code('EU'), 'EU')
+        self.assertEqual(normalize_country_code(
+            'EU # Country is really world wide'), 'EU')
+        self.assertEqual(normalize_country_code(
+            'DE #AT # IT'), 'DE')
+        self.assertEqual(normalize_country_code(
+            'FR # GF # GP # MQ # RE'), 'FR')
+
+    def test_capitalization(self):
+        # https://github.com/ioerror/blockfinder/issues/53
+        self.assertEqual(normalize_country_code('ro'), 'RO')
+        self.assertEqual(normalize_country_code('RO'), 'RO')
+        self.assertEqual(normalize_country_code(''), '')
+
+
 if __name__ == '__main__':
     failures = 0
-    for test_class in [CheckReverseLookup, CheckBlockFinder]:
+    for test_class in [CheckReverseLookup,
+                       CheckBlockFinder, NormalizationTest]:
         test_suite = unittest.makeSuite(test_class)
         test_runner = unittest.TextTestRunner(verbosity=2)
         results = test_runner.run(test_suite)
