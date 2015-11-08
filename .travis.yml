@@ -3,4 +3,9 @@ python:
   - "2.6"
   - "2.7"
   - "3.3"
-script: python blockfindertest.py
+
+before_script:
+  - pip install pep8==1.6.2
+script:
+  - python blockfindertest.py
+  - pep8 blockfinder blockfindertest.py
