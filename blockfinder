@@ -15,13 +15,13 @@ import bz2
 from math import log
 
 if sys.version_info[0] >= 3:
-    import configparser
+    from configparser import ConfigParser
     import ipaddress as ipaddr
     from urllib.request import (urlopen, Request)
     from urllib.error import URLError
     long = int
 else:
-    import ConfigParser as configparser
+    from ConfigParser import SafeConfigParser as ConfigParser
     from urllib2 import (urlopen, Request, URLError)
     try:
         from embedded_ipaddr import ipaddr
@@ -98,8 +98,11 @@ class DatabaseCache(object):
             configuration file. """
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
-        config = configparser.SafeConfigParser()
-        config.readfp(file_obj)
+        config = ConfigParser()
+        if sys.version_info[0] >= 3:
+            config.read_file(file_obj)
+        else:
+            config.readfp(file_obj)
         file_obj.close()
         return config
 
@@ -638,9 +641,12 @@ class DownloaderParser(object):
                     content = maxmind_zip_path.read(contained_filename)
                     self._parse_maxmind_content(content, 'maxmind',
                                                 'maxmind')
+                maxmind_zip_path.close()
             elif maxmind_path.endswith('.gz'):
-                content = gzip.open(maxmind_path).read()
+                gzip_file = gzip.open(maxmind_path)
+                content = gzip_file.read()
                 self._parse_maxmind_content(content, 'maxmind', 'maxmind')
+                gzip_file.close()
         self.database_cache.commit_changes()
 
     def import_maxmind_file(self, maxmind_path):
@@ -648,7 +654,8 @@ class DownloaderParser(object):
         if not os.path.exists(maxmind_path):
             print("Unable to find %s." % maxmind_path)
             return
-        content = open(maxmind_path).read()
+        with open(maxmind_path, 'r') as f:
+            content = f.read()
         self._parse_maxmind_content(content, maxmind_path, maxmind_path)
         self.database_cache.commit_changes()
 
@@ -689,7 +696,8 @@ class DownloaderParser(object):
             if not os.path.exists(rir_path):
                 print("Unable to find %s." % rir_path)
                 continue
-            for line in open(rir_path, 'r'):
+            rir_file = open(rir_path, 'r')
+            for line in rir_file:
                 if line.startswith("#"):
                     continue
                 entry = dict((k, v) for k, v in
@@ -717,6 +725,7 @@ class DownloaderParser(object):
                     country_code,
                     'rir',
                     source_name)
+            rir_file.close()
         self.database_cache.commit_changes()
 
     def parse_lir_files(self, lir_urls=None):
@@ -777,6 +786,7 @@ class DownloaderParser(object):
                         country_code,
                         'lir',
                         'ripencc')
+            lir_file.close()
         self.database_cache.commit_changes()
 
     def parse_asn_description_file(self, asn_description_url=None):
@@ -859,13 +869,15 @@ class Lookup(object):
         if not os.path.exists(country_code_path):
             return
         self.map_co = {}
-        for line in open(country_code_path):
+        country_code_file = open(country_code_path, 'r')
+        for line in country_code_file:
             if line == "" or line.startswith("Country ") or ";" not in line:
                 continue
             country_name, country_code = line.strip().split(";")
             country_name = ' '.join([part.capitalize() for part in
                                      country_name.split(" ")])
             self.map_co[country_name] = country_code
+        country_code_file.close()
 
     def knows_country_names(self):
         return self.map_co is not None
