@@ -99,7 +99,10 @@ class DatabaseCache(object):
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
         config = ConfigParser()
-        config.readfp(file_obj)
+        if sys.version_info[0] >= 3:
+            config.read_file(file_obj)
+        else:
+            config.readfp(file_obj)
         file_obj.close()
         return config
 
