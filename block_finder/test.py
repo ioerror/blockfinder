@@ -5,8 +5,8 @@ import shutil
 import sys
 import tempfile
 
-import blockfinder
-from blockfinder import ipaddr, normalize_country_code
+from . import blockfinder
+from .blockfinder import ipaddr, normalize_country_code
 
 
 class BaseBlockfinderTest(unittest.TestCase):
