@@ -641,9 +641,12 @@ class DownloaderParser(object):
                     content = maxmind_zip_path.read(contained_filename)
                     self._parse_maxmind_content(content, 'maxmind',
                                                 'maxmind')
+                maxmind_zip_path.close()
             elif maxmind_path.endswith('.gz'):
-                content = gzip.open(maxmind_path).read()
+                gzip_file = gzip.open(maxmind_path)
+                content = gzip_file.read()
                 self._parse_maxmind_content(content, 'maxmind', 'maxmind')
+                gzip_file.close()
         self.database_cache.commit_changes()
 
     def import_maxmind_file(self, maxmind_path):
