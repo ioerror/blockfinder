@@ -15,13 +15,13 @@ import bz2
 from math import log
 
 if sys.version_info[0] >= 3:
-    import configparser
+    from configparser import ConfigParser
     import ipaddress as ipaddr
     from urllib.request import (urlopen, Request)
     from urllib.error import URLError
     long = int
 else:
-    import ConfigParser as configparser
+    from ConfigParser import SafeConfigParser as ConfigParser
     from urllib2 import (urlopen, Request, URLError)
     try:
         from embedded_ipaddr import ipaddr
@@ -98,7 +98,7 @@ class DatabaseCache(object):
             configuration file. """
         if file_obj is None:
             file_obj = self.__get_default_config_file_obj()
-        config = configparser.SafeConfigParser()
+        config = ConfigParser()
         config.readfp(file_obj)
         file_obj.close()
         return config
