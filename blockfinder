@@ -45,7 +45,7 @@ except ImportError:
     antigravity = None
 
 
-class DatabaseCache:
+class DatabaseCache(object):
 
     def __init__(self, cache_dir, verbose=False):
         self.cache_dir = cache_dir
@@ -429,7 +429,7 @@ class DatabaseCache:
         f.close()
 
 
-class DownloaderParser:
+class DownloaderParser(object):
 
     def __init__(self, cache_dir, database_cache, user_agent,
                  verbose=False):
@@ -841,7 +841,7 @@ class DownloaderParser:
                             source_name)
 
 
-class Lookup:
+class Lookup(object):
 
     def __init__(self, cache_dir, database_cache, verbose=False):
         self.cache_dir = cache_dir
