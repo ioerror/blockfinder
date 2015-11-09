@@ -654,7 +654,8 @@ class DownloaderParser(object):
         if not os.path.exists(maxmind_path):
             print("Unable to find %s." % maxmind_path)
             return
-        content = open(maxmind_path).read()
+        with open(maxmind_path, 'r') as f:
+            content = f.read()
         self._parse_maxmind_content(content, maxmind_path, maxmind_path)
         self.database_cache.commit_changes()
 
