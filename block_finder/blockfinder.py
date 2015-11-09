@@ -27,8 +27,7 @@ else:
         from embedded_ipaddr import ipaddr
         ipaddr.ip_address = ipaddr.IPAddress
     except:
-        import ipaddr
-        ipaddr.ip_address = ipaddr.IPAddress
+        import ipaddress as ipaddr
 
 is_win32 = (sys.platform == "win32")
 
