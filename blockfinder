@@ -24,11 +24,11 @@ else:
     import ConfigParser as configparser
     from urllib2 import (urlopen, Request, URLError)
     try:
-      from embedded_ipaddr import ipaddr
-      ipaddr.ip_address = ipaddr.IPAddress
+        from embedded_ipaddr import ipaddr
+        ipaddr.ip_address = ipaddr.IPAddress
     except:
-      import ipaddr
-      ipaddr.ip_address = ipaddr.IPAddress
+        import ipaddr
+        ipaddr.ip_address = ipaddr.IPAddress
 
 is_win32 = (sys.platform == "win32")
 
@@ -46,6 +46,7 @@ except ImportError:
 
 
 class DatabaseCache:
+
     def __init__(self, cache_dir, verbose=False):
         self.cache_dir = cache_dir
         self.verbose = verbose
@@ -74,8 +75,8 @@ class DatabaseCache:
                 cache_version = "0.0.1"
             if cache_version != self.db_version:
                 print(("The existing database cache uses version %s, "
-                        "not the expected %s." % (cache_version,
-                        self.db_version)))
+                       "not the expected %s." % (cache_version,
+                                                 self.db_version)))
                 return False
         self.conn = sqlite3.connect(self.db_path)
         self.cursor = self.conn.cursor()
@@ -156,14 +157,14 @@ class DatabaseCache:
     def create_asn_assignments_table(self):
         """ Create the assignments table that stores the assignments from
             IPv4 to ASN """
-        #XXX: IPv6 not yet supported. (Not available from routeviews?)
+        # XXX: IPv6 not yet supported. (Not available from routeviews?)
         sql = ('CREATE TABLE IF NOT EXISTS asn_assignments(start_hex TEXT, '
                'next_start_hex TEXT, num_type TEXT, as_num INT, '
                'source_type TEXT, source_name TEXT, PRIMARY KEY(start_hex, '
                'next_start_hex))')
         self.cursor.execute(sql)
         sql = ('CREATE INDEX IF NOT EXISTS ASNEntriesByStartHex on '
-              'asn_assignments ( start_hex )')
+               'asn_assignments ( start_hex )')
         self.cursor.execute(sql)
         self.conn.commit()
 
@@ -187,7 +188,7 @@ class DatabaseCache:
         self.conn.commit()
 
     def insert_assignment(self, start_num, end_num, num_type,
-            country_code, source_type, source_name):
+                          country_code, source_type, source_name):
         """ Insert an assignment into the database cache, without
             commiting after the insertion. """
         sql = ('INSERT INTO assignments (start_hex, next_start_hex, '
@@ -201,16 +202,17 @@ class DatabaseCache:
             next_start_hex = '%09x' % (end_num + 1)
         country_code = normalize_country_code(country_code)
         self.cursor.execute(sql, (start_hex, next_start_hex, num_type,
-                country_code, source_type, source_name))
+                                  country_code, source_type, source_name))
 
     def insert_asn_description(self, asn, source_name, description):
-        sql = ('INSERT INTO asn_descriptions (as_num, source_name, description) '
+        sql = ('INSERT INTO asn_descriptions '
+               '(as_num, source_name, description) '
                'VALUES (?, ?, ?)')
         self.cursor.execute(sql, (asn, source_name, unicode(description)))
 
     def insert_asn_assignment(self, start_num, end_num, num_type, asn,
-            source_type, source_name):
-        #XXX: This is sqlite specific syntax
+                              source_type, source_name):
+        # XXX: This is sqlite specific syntax
         sql = ('INSERT OR IGNORE INTO asn_assignments (start_hex, '
                'next_start_hex, num_type, as_num, source_type, source_name) '
                'VALUES (?, ?, ?, ?, ?, ?)')
@@ -221,7 +223,7 @@ class DatabaseCache:
             start_hex = '%09x' % start_num
             next_start_hex = '%09x' % (end_num + 1)
         self.cursor.execute(sql, (start_hex, next_start_hex, num_type, asn,
-                    source_type, source_name))
+                                  source_type, source_name))
 
     def commit_changes(self):
         """ Commit changes, e.g., after inserting assignments into the
@@ -255,7 +257,7 @@ class DatabaseCache:
         else:
             lookup_hex = '%09x' % long(lookup_num)
         self.cursor.execute(sql, (num_type, source_type, lookup_hex,
-                lookup_hex))
+                                  lookup_hex))
         row = self.cursor.fetchone()
         if row:
             return row[0]
@@ -284,8 +286,8 @@ class DatabaseCache:
         result = []
         for row in self.cursor:
             result.append((str(row[0]), long(row[1], 16),
-                    long(row[2], 16) - 1, str(row[3]), long(row[4], 16),
-                    long(row[5], 16) - 1, str(row[6]), str(row[7])))
+                           long(row[2], 16) - 1, str(row[3]), long(row[4], 16),
+                           long(row[5], 16) - 1, str(row[6]), str(row[7])))
         return result
 
     def fetch_org_by_ip_address(self, lookup_str, num_type):
@@ -321,7 +323,8 @@ class DatabaseCache:
         if row:
             return row
 
-    def _concatenate_and_write(self, records, write_function=None, record_filter=None, bits=32):
+    def _concatenate_and_write(
+            self, records, write_function=None, record_filter=None, bits=32):
         netblocks = []
         for row in records:
             try:
@@ -329,7 +332,7 @@ class DatabaseCache:
                     long(row[0], 16), long(row[1], 16), str(row[2])
                 nb = bits - int(log(next_start_hex - start_hex, 2))
                 net = ipaddr.IPNetwork("%s/%d" %
-                        (ipaddr.IPAddress(start_hex),nb))
+                                       (ipaddr.IPAddress(start_hex), nb))
                 if callable(record_filter):
                     record = record_filter(record)
             except ValueError:
@@ -338,26 +341,28 @@ class DatabaseCache:
             # Concatenate adjacent blocks of the same country
             if netblocks and netblocks[-1][1] == record:
                 pn = netblocks[-1][0]
-                nb = bits - int(log(int(net.network) + \
-                        int(net.numhosts) - int(pn.network), 2))
-                netblocks[-1] = (ipaddr.IPNetwork("%s/%d" % \
-                            (pn.network, nb)), record)
+                nb = bits - int(log(int(net.network) +
+                                    int(net.numhosts) - int(pn.network), 2))
+                netblocks[-1] = (ipaddr.IPNetwork("%s/%d" %
+                                                  (pn.network, nb)), record)
 
             # if the adjacent blocks aren't the same country,
             # write the last block out to csv and add the new block
             # to the list for possible concatenation
             elif netblocks:
-                prev_n,prev_record = netblocks.pop()
+                prev_n, prev_record = netblocks.pop()
                 if write_function:
-                    write_function(prev_n,prev_record)
-                netblocks.append((net,record))
+                    write_function(prev_n, prev_record)
+                netblocks.append((net, record))
 
             # this is the base case
             else:
-                netblocks.append((net,record))
+                netblocks.append((net, record))
 
     def export_asn(self, filename, num_type):
-        """ Export assignments to the CSV format used to build the geoip-database asn lookup """
+        """ Export assignments to the CSV format used to build the
+            geoip-database asn lookup
+        """
         sql = ('SELECT start_hex, next_start_hex, as_num '
                'FROM asn_assignments WHERE num_type = ? ORDER BY start_hex')
         self.cursor.execute(sql, (num_type,))
@@ -368,16 +373,21 @@ class DatabaseCache:
             return
 
         def write_csv_line(network, asn):
-            #XXX: wild guess
+            # XXX: wild guess
             f.write(""""%s","%s","%d","%d","%s"\n""" % (network.network,
-                        network.broadcast, int(network.network),
-                        int(network.broadcast), asn))
-        if num_type == 'ipv6': ip_bits = 128
-        elif num_type == 'ipv4': ip_bits = 32
-        else: return
+                                                        network.broadcast,
+                                                        int(network.network),
+                                                        int(network.broadcast),
+                                                        asn))
+        if num_type == 'ipv6':
+            ip_bits = 128
+        elif num_type == 'ipv4':
+            ip_bits = 32
+        else:
+            return
 
         self._concatenate_and_write(self.cursor, write_function=write_csv_line,
-                bits=ip_bits)
+                                    bits=ip_bits)
         f.close()
 
     def export_geoip(self, lookup, filename, num_type):
@@ -385,7 +395,7 @@ class DatabaseCache:
             geoip-database package """
 
         sql = ('SELECT start_hex, next_start_hex, country_code '
-                'FROM assignments WHERE num_type = ? ORDER BY start_hex')
+               'FROM assignments WHERE num_type = ? ORDER BY start_hex')
         self.cursor.execute(sql, (num_type,))
 
         try:
@@ -397,22 +407,32 @@ class DatabaseCache:
         def write_csv_line(network, country_code):
             country_name = lookup.get_name_from_country_code(country_code)
             if country_name:
-                country_name = country_name.split("#")[0].strip() #Drop comments
-            f.write(""""%s","%s","%d","%d","%s","%s"\n""" % (network.network,
-                        network.broadcast, int(network.network),
-                        int(network.broadcast), country_code, country_name))
+                country_name = country_name.split(
+                    "#")[0].strip()  # Drop comments
+            f.write(""""%s","%s","%d","%d","%s","%s"\n""" % (
+                network.network,
+                network.broadcast,
+                int(network.network),
+                int(network.broadcast),
+                country_code,
+                country_name))
 
-        if num_type == 'ipv6': ip_bits = 128
-        elif num_type == 'ipv4': ip_bits = 32
-        else: return
+        if num_type == 'ipv6':
+            ip_bits = 128
+        elif num_type == 'ipv4':
+            ip_bits = 32
+        else:
+            return
 
         self._concatenate_and_write(self.cursor, write_function=write_csv_line,
-                record_filter=str.upper, bits=ip_bits)
+                                    record_filter=str.upper, bits=ip_bits)
         f.close()
 
+
 class DownloaderParser:
+
     def __init__(self, cache_dir, database_cache, user_agent,
-            verbose=False):
+                 verbose=False):
         self.cache_dir = cache_dir
         self.database_cache = database_cache
         self.user_agent = user_agent
@@ -436,13 +456,15 @@ class DownloaderParser:
         ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
     """
 
-    COUNTRY_CODE_URL = "http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm"
+    COUNTRY_CODE_URL = ("http://www.iso.org/iso/home/standards/country_codes/"
+                        "country_names_and_code_elements_txt-temp.htm")
 
     ASN_DESCRIPTION_URL = "http://www.cidr-report.org/as2.0/autnums.html"
 
-    ASN_ASSIGNMENT_URLS = """
-        http://archive.routeviews.org/oix-route-views/oix-full-snapshot-latest.dat.bz2
-    """
+    ASN_ASSIGNMENT_URLS = [
+        ('http://archive.routeviews.org/oix-route-views/'
+         'oix-full-snapshot-latest.dat.bz2'),
+    ]
 
     def download_maxmind_files(self):
         """ Download all LIR delegation urls. """
@@ -473,7 +495,7 @@ class DownloaderParser:
 
     def download_asn_assignment_files(self):
         """ Download and save the latest routing snapshots. """
-        for assignment_url in self.ASN_ASSIGNMENT_URLS.split():
+        for assignment_url in self.ASN_ASSIGNMENT_URLS:
             self._download_to_cache_dir(assignment_url)
 
     def _download_to_cache_dir(self, url):
@@ -490,7 +512,7 @@ class DownloaderParser:
         if self.user_agent:
             req.add_header('User-Agent', self.user_agent)
         # TODO Allow use of a proxy.
-        #req.set_proxy(host, type)
+        # req.set_proxy(host, type)
         try:
             fetcher = urlopen(req)
         except URLError as err:
@@ -502,7 +524,7 @@ class DownloaderParser:
         if length_header:
             expected_bytes = int(length_header)
             print(("Fetching %d kilobytes" %
-                    round(float(expected_bytes / 1024), 2)))
+                   round(float(expected_bytes / 1024), 2)))
         download_started = time.time()
         output_file = open(os.path.join(self.cache_dir, filename), "wb")
         received_bytes, seconds_elapsed = 0, 0
@@ -510,12 +532,12 @@ class DownloaderParser:
             seconds_elapsed = time.time() - download_started
             if expected_bytes >= 0:
                 self._update_progress_bar(received_bytes, expected_bytes,
-                        seconds_elapsed)
+                                          seconds_elapsed)
             chunk = fetcher.read(1024)
             if len(chunk) == 0:
                 if expected_bytes >= 0 and received_bytes != expected_bytes:
                     print(("Expected %s bytes, only received %s" %
-                            (expected_bytes, received_bytes)))
+                           (expected_bytes, received_bytes)))
                 print("")
                 break
             received_bytes += len(chunk)
@@ -523,24 +545,24 @@ class DownloaderParser:
         output_file.close()
 
     def _update_progress_bar(self, received_bytes, expected_bytes,
-            seconds_elapsed):
+                             seconds_elapsed):
         """ Write a progress bar to the console. """
         if is_win32:
-          rows    = 100 # use some WinCon function for these?
-          columns = 80  # but not really important.
-          EOL = "\r"
+            rows = 100  # use some WinCon function for these?
+            columns = 80  # but not really important.
+            EOL = "\r"
         else:
-          rows, columns = list(map(int, os.popen('stty size', 'r'
-              ).read().split()))
-          EOL = "\x1b[G"
+            rows, columns = list(map(int, os.popen('stty size', 'r'
+                                                   ).read().split()))
+            EOL = "\x1b[G"
         if seconds_elapsed == 0:
             seconds_elapsed = 1
         percent_done = float(received_bytes) / float(expected_bytes)
         caption = "%.2f K/s" % (received_bytes / 1024 / seconds_elapsed)
         width = columns - 4 - len(caption)
         sys.stdout.write("[%s>%s] %s%s" % (
-                "=" * int(percent_done * width),
-                "." * (width - int(percent_done * width)), caption, EOL))
+            "=" * int(percent_done * width),
+            "." * (width - int(percent_done * width)), caption, EOL))
         sys.stdout.flush()
 
     def check_rir_file_mtimes(self):
@@ -550,7 +572,7 @@ class DownloaderParser:
             return False
         for rir_url in self.RIR_URLS.split():
             rir_path = os.path.join(self.cache_dir,
-                    rir_url.split('/')[-1])
+                                    rir_url.split('/')[-1])
             if os.path.exists(rir_path):
                 rir_stat = os.stat(rir_path)
                 if (time.time() - rir_stat.st_mtime) > 86400:
@@ -563,9 +585,9 @@ class DownloaderParser:
             or False otherwise. """
         for rir_url in self.RIR_URLS.split():
             rir_path = os.path.join(self.cache_dir,
-                    rir_url.split('/')[-1])
+                                    rir_url.split('/')[-1])
             rir_md5_path = os.path.join(self.cache_dir,
-                    rir_url.split('/')[-1] + '.md5')
+                                        rir_url.split('/')[-1] + '.md5')
             if not os.path.exists(rir_md5_path) or \
                     not os.path.exists(rir_path):
                 continue
@@ -594,8 +616,8 @@ class DownloaderParser:
             computed_checksum = str(hashlib.md5(rir_data).hexdigest())
             if expected_checksum != computed_checksum:
                 print(("The computed md5 checksum of %s, %s, does *not* "
-                        "match the provided checksum %s!" %
-                        (rir_path, computed_checksum, expected_checksum)))
+                       "match the provided checksum %s!" %
+                       (rir_path, computed_checksum, expected_checksum)))
 
     def parse_maxmind_files(self, maxmind_urls=None):
         """ Parse locally cached MaxMind files and insert assignments to the
@@ -606,7 +628,7 @@ class DownloaderParser:
         self.database_cache.delete_assignments('maxmind')
         for maxmind_url in maxmind_urls:
             maxmind_path = os.path.join(self.cache_dir,
-                    maxmind_url.split('/')[-1])
+                                        maxmind_url.split('/')[-1])
             if not os.path.exists(maxmind_path):
                 print("Unable to find %s." % maxmind_path)
                 continue
@@ -615,7 +637,7 @@ class DownloaderParser:
                 for contained_filename in maxmind_zip_path.namelist():
                     content = maxmind_zip_path.read(contained_filename)
                     self._parse_maxmind_content(content, 'maxmind',
-                            'maxmind')
+                                                'maxmind')
             elif maxmind_path.endswith('.gz'):
                 content = gzip.open(maxmind_path).read()
                 self._parse_maxmind_content(content, 'maxmind', 'maxmind')
@@ -632,7 +654,7 @@ class DownloaderParser:
 
     def _parse_maxmind_content(self, content, source_type, source_name):
         keys = ['start_str', 'end_str', 'start_num', 'end_num',
-                 'country_code', 'country_name']
+                'country_code', 'country_name']
         for line in content.decode('utf-8').split('\n'):
             if len(line.strip()) == 0 or line.startswith("#"):
                 continue
@@ -647,8 +669,12 @@ class DownloaderParser:
                 num_type = 'ipv4'
             else:
                 num_type = 'ipv6'
-            self.database_cache.insert_assignment(start_num, end_num,
-                    num_type, country_code, source_type, source_name)
+            self.database_cache.insert_assignment(
+                start_num, end_num,
+                num_type,
+                country_code,
+                source_type,
+                source_name)
 
     def parse_rir_files(self, rir_urls=None):
         """ Parse locally cached RIR files and insert assignments to the local
@@ -659,7 +685,7 @@ class DownloaderParser:
         keys = "registry country_code type start value date status"
         for rir_url in rir_urls:
             rir_path = os.path.join(self.cache_dir,
-                    rir_url.split('/')[-1])
+                                    rir_url.split('/')[-1])
             if not os.path.exists(rir_path):
                 print("Unable to find %s." % rir_path)
                 continue
@@ -667,10 +693,11 @@ class DownloaderParser:
                 if line.startswith("#"):
                     continue
                 entry = dict((k, v) for k, v in
-                        zip(keys.split(), line.strip().split("|")))
+                             zip(keys.split(), line.strip().split("|")))
                 source_name = str(entry['registry'])
                 country_code = str(entry['country_code'])
-                if source_name.replace(".", "", 1).isdigit() or country_code == "*":
+                if source_name.replace(
+                        ".", "", 1).isdigit() or country_code == "*":
                     continue
                 num_type = entry['type']
                 if num_type == 'asn':
@@ -683,9 +710,13 @@ class DownloaderParser:
                     network_ipaddr = ipaddr.IPv6Network(network_str)
                     start_num = int(network_ipaddr.network_address)
                     end_num = int(network_ipaddr.broadcast_address)
-                self.database_cache.insert_assignment(start_num,
-                        end_num, num_type, country_code, 'rir',
-                        source_name)
+                self.database_cache.insert_assignment(
+                    start_num,
+                    end_num,
+                    num_type,
+                    country_code,
+                    'rir',
+                    source_name)
         self.database_cache.commit_changes()
 
     def parse_lir_files(self, lir_urls=None):
@@ -696,7 +727,7 @@ class DownloaderParser:
         self.database_cache.delete_assignments('lir')
         for lir_url in lir_urls:
             lir_path = os.path.join(self.cache_dir,
-                    lir_url.split('/')[-1])
+                                    lir_url.split('/')[-1])
             if not os.path.exists(lir_path):
                 print("Unable to find %s." % lir_path)
                 continue
@@ -739,8 +770,13 @@ class DownloaderParser:
                             print(repr(e), line)
                 elif entry and "country:" in line:
                     country_code = line.replace("country:", "").strip()
-                    self.database_cache.insert_assignment(start_num,
-                            end_num, num_type, country_code, 'lir', 'ripencc')
+                    self.database_cache.insert_assignment(
+                        start_num,
+                        end_num,
+                        num_type,
+                        country_code,
+                        'lir',
+                        'ripencc')
         self.database_cache.commit_changes()
 
     def parse_asn_description_file(self, asn_description_url=None):
@@ -751,7 +787,7 @@ class DownloaderParser:
             asn_description_url = self.ASN_DESCRIPTION_URL
         self.database_cache.delete_asn_descriptions()
         asn_description_path = os.path.join(self.cache_dir,
-                asn_description_url.split('/')[-1])
+                                            asn_description_url.split('/')[-1])
         asn_descriptions = open(asn_description_path)
         source_name = 'cidr_report'
         skiplen = len('<a href="/cgi-bin/as-report?as=AS')
@@ -760,7 +796,7 @@ class DownloaderParser:
                 asn, _name = line[skiplen:].split('&view=2.0')
                 description = _name.split('</a>')[1].strip()
                 self.database_cache.insert_asn_description(asn, source_name,
-                        description)
+                                                           description)
             except ValueError:
                 pass
         self.database_cache.commit_changes()
@@ -768,11 +804,12 @@ class DownloaderParser:
 
     def parse_asn_assignment_files(self, asn_assignment_urls=None):
         if not asn_assignment_urls:
-            asn_assignment_urls = self.ASN_ASSIGNMENT_URLS.split()
+            asn_assignment_urls = self.ASN_ASSIGNMENT_URLS
         self.database_cache.delete_asn_assignments()
         for asn_assignment_url in asn_assignment_urls:
-            asn_assignment_path = os.path.join(self.cache_dir,
-                    asn_assignment_url.split('/')[-1])
+            asn_assignment_path = os.path.join(
+                self.cache_dir,
+                asn_assignment_url.split('/')[-1])
             if not os.path.exists(asn_assignment_path):
                 print("Unable to find %s." % asn_assignment_path)
                 continue
@@ -782,21 +819,30 @@ class DownloaderParser:
                     if line.startswith("*"):
                         l = line.split()
                         netblock, path = l[1], l[6:-1]
-                        nexthop, metric, locprf, weight = l[2],l[3],l[4],l[5]
+                        nexthop, metric, locprf, weight = l[
+                            2], l[3], l[4], l[5]
 
                         network = ipaddr.IPNetwork(netblock)
-                        #XXX add support for other sources too
+                        # XXX add support for other sources too
                         source_type = 'bgp_snapshot'
                         source_name = 'routeviews'
 
-                        if isinstance(network, ipaddr.IPv4Network): num_type = "ipv4"
-                        else: num_type = "ivp6"
+                        if isinstance(network, ipaddr.IPv4Network):
+                            num_type = "ipv4"
+                        else:
+                            num_type = "ivp6"
 
-                        self.database_cache.insert_asn_assignment(int(network.network),
-                                int(network.broadcast), num_type, path[-1],
-                                source_type, source_name)
+                        self.database_cache.insert_asn_assignment(
+                            int(network.network),
+                            int(network.broadcast),
+                            num_type,
+                            path[-1],
+                            source_type,
+                            source_name)
+
 
 class Lookup:
+
     def __init__(self, cache_dir, database_cache, verbose=False):
         self.cache_dir = cache_dir
         self.database_cache = database_cache
@@ -807,8 +853,9 @@ class Lookup:
     def build_country_code_dictionary(self):
         """ Return a dictionary mapping country name to the country
             code. """
-        country_code_path = os.path.join(self.cache_dir,
-                'country_names_and_code_elements_txt-temp.htm')
+        country_code_path = os.path.join(
+            self.cache_dir,
+            'country_names_and_code_elements_txt-temp.htm')
         if not os.path.exists(country_code_path):
             return
         self.map_co = {}
@@ -816,8 +863,8 @@ class Lookup:
             if line == "" or line.startswith("Country ") or ";" not in line:
                 continue
             country_name, country_code = line.strip().split(";")
-            country_name = ' '.join([part.capitalize() for part in \
-                    country_name.split(" ")])
+            country_name = ' '.join([part.capitalize() for part in
+                                     country_name.split(" ")])
             self.map_co[country_name] = country_code
 
     def knows_country_names(self):
@@ -826,8 +873,8 @@ class Lookup:
     def get_name_from_country_code(self, cc_code):
         if not self.knows_country_names():
             return
-        country_name = [(key, value) for (key, value) in \
-                list(self.map_co.items()) if value == cc_code]
+        country_name = [(key, value) for (key, value) in
+                        list(self.map_co.items()) if value == cc_code]
         if len(country_name) > 0:
             return country_name[0][0]
 
@@ -835,16 +882,18 @@ class Lookup:
         """ Return the country code for a given country name. """
         if not self.knows_country_names():
             return
-        cc_code = [self.map_co[key] for key in list(self.map_co.keys()) if \
-                key.upper().startswith(country_name.upper())]
+        cc_code = [self.map_co[key] for key in list(self.map_co.keys()) if
+                   key.upper().startswith(country_name.upper())]
         if len(cc_code) > 0:
             return cc_code[0]
 
     def lookup_ipv6_address(self, lookup_ipaddr):
         print("Reverse lookup for: " + str(lookup_ipaddr))
         for source_type in ['maxmind', 'rir', 'lir']:
-            cc = self.database_cache.fetch_country_code('ipv6',
-                    source_type, int(lookup_ipaddr))
+            cc = self.database_cache.fetch_country_code(
+                'ipv6',
+                source_type,
+                int(lookup_ipaddr))
             if cc:
                 print(source_type.upper(), "country code:", cc)
                 cn = self.get_name_from_country_code(cc)
@@ -854,14 +903,14 @@ class Lookup:
     def lookup_ipv4_address(self, lookup_ipaddr):
         print("Reverse lookup for: " + str(lookup_ipaddr))
         maxmind_cc = self.database_cache.fetch_country_code('ipv4', 'maxmind',
-                int(lookup_ipaddr))
+                                                            int(lookup_ipaddr))
         if maxmind_cc:
             print('MaxMind country code:', maxmind_cc)
             maxmind_cn = self.get_name_from_country_code(maxmind_cc)
             if maxmind_cn:
                 print('MaxMind country name:', maxmind_cn)
         rir_cc = self.database_cache.fetch_country_code('ipv4', 'rir',
-                int(lookup_ipaddr))
+                                                        int(lookup_ipaddr))
         if rir_cc:
             print('RIR country code:', rir_cc)
             rir_cn = self.get_name_from_country_code(rir_cc)
@@ -870,7 +919,7 @@ class Lookup:
         else:
             print('Not found in RIR db')
         lir_cc = self.database_cache.fetch_country_code('ipv4', 'lir',
-                int(lookup_ipaddr))
+                                                        int(lookup_ipaddr))
         if lir_cc:
             print('LIR country code:', lir_cc)
             lir_cn = self.get_name_from_country_code(lir_cc)
@@ -878,8 +927,8 @@ class Lookup:
                 print('LIR country name:', lir_cn)
         if maxmind_cc and maxmind_cc != rir_cc:
             print("It appears that the RIR data conflicts with MaxMind's "
-                    "data.  MaxMind's data is likely closer to being "
-                    "correct due to sub-delegation issues with LIR databases.")
+                  "data.  MaxMind's data is likely closer to being "
+                  "correct due to sub-delegation issues with LIR databases.")
 
     def lookup_ip_address(self, lookup_str):
         """ Return the country code and name for a given ip address. """
@@ -891,7 +940,7 @@ class Lookup:
                 self.lookup_ipv6_address(lookup_ipaddr)
             else:
                 print(("Did not recognize '%s' as either IPv4 or IPv6 "
-                        "address." % lookup_str))
+                       "address." % lookup_str))
         except ValueError as e:
             print("'%s' is not a valid IP address." % lookup_str)
 
@@ -913,8 +962,8 @@ class Lookup:
                 start_ipaddr = ipaddr.ip_address(start_num)
                 end_ipaddr = ipaddr.ip_address(end_num)
                 result += [str(x) for x in
-                        ipaddr.summarize_address_range(
-                        start_ipaddr, end_ipaddr)]
+                           ipaddr.summarize_address_range(
+                    start_ipaddr, end_ipaddr)]
             else:
                 result.append(str(start_num))
         return result
@@ -930,9 +979,9 @@ class Lookup:
                "  '*' = overlapping assignment range, first conflict\n"
                "  '#' = overlapping assignment range, second conflict and "
                "beyond\n  ' ' = neighboring assignment range") % (
-               first_country_code, ))
+            first_country_code, ))
         results = self.database_cache.fetch_country_blocks_in_other_sources(
-                first_country_code)
+            first_country_code)
         prev_first_source_type = ''
         prev_first_start_num = -1
         cur_second_country_codes = []
@@ -966,17 +1015,17 @@ class Lookup:
             elif num_type.startswith("ip") and \
                     second_start_num < second_end_num:
                 second_range = "%s-%s" % (ipaddr.ip_address(second_start_num),
-                        ipaddr.ip_address(second_end_num))
+                                          ipaddr.ip_address(second_end_num))
             elif second_start_num < second_end_num:
                 second_range = "AS%d-%d" % (second_start_num, second_end_num)
             else:
                 second_range = "AS%d" % (second_start_num, )
             print("%1s %s %s %s" % (marker, second_country_code, second_range,
-                    second_source_type, ))
+                                    second_source_type, ))
 
     def _get_network_string_from_range(self, end, start, bits=32):
-        start, end = int(start,16), int(end,16)
-        netbits = bits - int(log(end - start,2))
+        start, end = int(start, 16), int(end, 16)
+        netbits = bits - int(log(end - start, 2))
         return ipaddr.IPNetwork("%s/%d" % (ipaddr.IPAddress(start), netbits))
 
     def lookup_org_by_ip(self, lookup_str):
@@ -991,36 +1040,46 @@ class Lookup:
                 len_bits = 128
             else:
                 raise ValueError
-            rs = self.database_cache.fetch_org_by_ip_address(lookup_ipaddr, num_type)
+            rs = self.database_cache.fetch_org_by_ip_address(
+                lookup_ipaddr, num_type)
             for r in rs:
-                network = self._get_network_string_from_range(r[3],r[2], bits=len_bits)
-                print("%s in %s announced by AS%s - %s" % (lookup_str, network, r[0], r[1]))
+                network = self._get_network_string_from_range(
+                    r[3], r[2], bits=len_bits)
+                print("%s in %s announced by AS%s - %s" %
+                      (lookup_str, network, r[0], r[1]))
         except ValueError:
             print("'%s' is not a valid IP address." % lookup_str)
         except TypeError:
-            print("Did not find any matching announcements containing %s." % lookup_str)
+            print("Did not find any matching announcements containing %s." %
+                  lookup_str)
 
     def lookup_org_by_range(self, start_range, end_range):
         output_str = "%s announced by AS%s - %s"
         try:
             a = ipaddr.IPAddress(start_range)
             b = ipaddr.IPAddress(end_range)
-            if isinstance(a, ipaddr.IPv4Address) and isinstance(b, ipaddr.IPv4Address):
+            if isinstance(a, ipaddr.IPv4Address) and isinstance(
+                    b, ipaddr.IPv4Address):
                 num_type = 'ipv4'
                 len_bits = 32
-            elif isinstance(a, ipaddr.IPv6Address) and isinstance(b, ipaddr.IPv6Address):
+            elif isinstance(a, ipaddr.IPv6Address) and (
+                    isinstance(b, ipaddr.IPv6Address)):
                 num_type = 'ipv6'
                 len_bits = 128
             else:
                 raise ValueError
-            rs = self.database_cache.fetch_org_by_ip_range(min(a,b), max(a,b), num_type)
+            rs = self.database_cache.fetch_org_by_ip_range(
+                min(a, b), max(a, b), num_type)
             for r in rs:
-                network = self._get_network_string_from_range(r[3],r[2], bits=len_bits)
+                network = self._get_network_string_from_range(
+                    r[3], r[2], bits=len_bits)
                 print(output_str % (network, r[0], r[1]))
         except ValueError:
             print("%s %s is not a valid IP range." % (start_range, end_range))
         except TypeError:
-            print("Did not find any matching announcements in range %s %s." % (start_range, end_range))
+            print("Did not find any matching announcements in range %s %s." %
+                  (start_range, end_range))
+
 
 def split_callback(option, opt, value, parser):
     split_value = value.split(':')
@@ -1041,122 +1100,222 @@ def normalize_country_code(country_code):
 def main():
     """ Where the magic starts. """
     usage = ("Usage: %prog [options]\n\n"
-            "Example: %prog -v -t mm")
+             "Example: %prog -v -t mm")
     parser = optparse.OptionParser(usage)
     parser.add_option("-v", "--verbose", action="store_true",
-            dest="verbose", help = "be verbose", default=False)
+                      dest="verbose", help="be verbose", default=False)
     parser.add_option("-c", "--cache-dir", action="store", dest="dir",
-            help="set cache directory [default: %default]",
-            default=str(os.path.expanduser('~')) + "/.blockfinder/")
+                      help="set cache directory [default: %default]",
+                      default=str(os.path.expanduser('~')) + "/.blockfinder/")
     parser.add_option("--user-agent", action="store", dest="ua",
-            help=('provide a User-Agent which will be used when '
-                  'fetching delegation files [default: "%default"]'),
-            default="Mozilla/5.0 (Windows NT 6.1; rv:17.0) Gecko/20100101 Firefox/17.0")
+                      help=('provide a User-Agent which will be used when '
+                            'fetching delegation files [default: "%default"]'),
+                      default=("Mozilla/5.0 (Windows NT 6.1; rv:17.0) "
+                               "Gecko/20100101 Firefox/17.0"))
     parser.add_option("-x", "--hack-the-internet", action="store_true",
-            dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
-    group = optparse.OptionGroup(parser, "Cache modes",
-            "Pick at most one of these modes to initialize or update "
-            "the local cache.  May not be combined with lookup modes.")
-    group.add_option("-m", "--init-maxmind", action="store_true",
-            dest="init_maxmind",
-            help="initialize or update MaxMind GeoIP database")
-    group.add_option("-g", "--reload-maxmind", action="store_true",
-            dest="reload_maxmind",
-            help=("update cache from existing MaxMind GeoIP database"))
-    group.add_option("-r", "--import-maxmind", action="store",
-            dest="import_maxmind", metavar="FILE",
-            help=("import the specified MaxMind GeoIP database file into "
-                  "the database cache using its file name as source "
-                  "name"))
+                      dest="hack_the_internet", help=optparse.SUPPRESS_HELP)
+    group = optparse.OptionGroup(
+        parser,
+        "Cache modes",
+        "Pick at most one of these modes to initialize or update "
+        "the local cache.  May not be combined with lookup modes.")
+    group.add_option(
+        "-m",
+        "--init-maxmind",
+        action="store_true",
+        dest="init_maxmind",
+        help="initialize or update MaxMind GeoIP database")
+    group.add_option(
+        "-g",
+        "--reload-maxmind",
+        action="store_true",
+        dest="reload_maxmind",
+        help=("update cache from existing MaxMind GeoIP database"))
+    group.add_option(
+        "-r",
+        "--import-maxmind",
+        action="store",
+        dest="import_maxmind",
+        metavar="FILE",
+        help=("import the specified MaxMind GeoIP database file into "
+              "the database cache using its file name as source "
+              "name"))
     group.add_option("-i", "--init-rir",
-            action="store_true", dest="init_del",
-            help="initialize or update delegation information")
-    group.add_option("-d", "--reload-rir", action="store_true",
-            dest="reload_del",
-            help="use existing delegation files to update the database")
-    group.add_option("-l", "--init-lir", action="store_true",
-            dest="init_lir",
-            help=("initialize or update lir information; can take up to "
-                  "5 minutes"))
-    group.add_option("-z", "--reload-lir", action="store_true",
-            dest="reload_lir",
-            help=("use existing lir files to update the database; can "
-                  "take up to 5 minutes"))
-    group.add_option("-o", "--download-cc", action="store_true",
-            dest="download_cc", help="download country codes file")
-    group.add_option("-e", "--erase-cache", action="store_true",
-            dest="erase_cache", help="erase the local database cache")
-    group.add_option("-j", "--init-asn-descriptions", action="store_true",
-            dest="init_asn_descriptions",
-            help=("initialize or update asn description information"))
-    group.add_option("-k", "--reload-asn-descriptions", action="store_true",
-            dest="reload_asn_descriptions",
-            help=("Use existing asn descriptions to update database"))
-    group.add_option("-y", "--init-asn-assignments", action="store_true",
-            dest="init_asn_assignments",
-            help=("initialize or update asn assignment information"))
-    group.add_option("-u", "--reload-asn-assignments", action="store_true",
-            dest="reload_asn_assignments",
-            help=("Use existing asn assignments to update database"))
+                     action="store_true", dest="init_del",
+                     help="initialize or update delegation information")
+    group.add_option(
+        "-d",
+        "--reload-rir",
+        action="store_true",
+        dest="reload_del",
+        help="use existing delegation files to update the database")
+    group.add_option(
+        "-l",
+        "--init-lir",
+        action="store_true",
+        dest="init_lir",
+        help=("initialize or update lir information; can take up to "
+              "5 minutes"))
+    group.add_option(
+        "-z",
+        "--reload-lir",
+        action="store_true",
+        dest="reload_lir",
+        help=("use existing lir files to update the database; can "
+              "take up to 5 minutes"))
+    group.add_option(
+        "-o",
+        "--download-cc",
+        action="store_true",
+        dest="download_cc",
+        help="download country codes file")
+    group.add_option(
+        "-e",
+        "--erase-cache",
+        action="store_true",
+        dest="erase_cache",
+        help="erase the local database cache")
+    group.add_option(
+        "-j",
+        "--init-asn-descriptions",
+        action="store_true",
+        dest="init_asn_descriptions",
+        help=("initialize or update asn description information"))
+    group.add_option(
+        "-k",
+        "--reload-asn-descriptions",
+        action="store_true",
+        dest="reload_asn_descriptions",
+        help=("Use existing asn descriptions to update database"))
+    group.add_option(
+        "-y",
+        "--init-asn-assignments",
+        action="store_true",
+        dest="init_asn_assignments",
+        help=("initialize or update asn assignment information"))
+    group.add_option(
+        "-u",
+        "--reload-asn-assignments",
+        action="store_true",
+        dest="reload_asn_assignments",
+        help=("Use existing asn assignments to update database"))
     parser.add_option_group(group)
-    group = optparse.OptionGroup(parser, "Lookup modes",
-            "Pick at most one of these modes to look up data in the "
-            "local cache.  May not be combined with cache modes.")
-    group.add_option("-4", "--ipv4", action="store", dest="ipv4",
-            help=("look up country code and name for the specified IPv4 "
-                  "address"))
-    group.add_option("-6", "--ipv6", action="store", dest="ipv6",
-            help=("look up country code and name for the specified IPv6 "
-                  "address"))
-    group.add_option("-a", "--asn", action="store", dest="asn",
-            help="look up country code and name for the specified ASN")
-    group.add_option("-t", "--code", action="callback", dest="cc",
-            callback=split_callback, metavar="CC[:type]", type="str",
-            help=("look up all allocations (or only those for number "
-                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
-                  "delegation cache for the specified two-letter country "
-                  "code"))
-    group.add_option("-n", "--name", action="callback", dest="cn",
-            callback=split_callback, metavar="CN[:type]", type="str",
-            help=("look up all allocations (or only those for number "
-                  "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
-                  "delegation cache for the specified full country name"))
-    group.add_option("-p", "--compare", action="store", dest="compare",
-            metavar="CC",
-            help=("compare assignments to the specified country code "
-                  "with overlapping assignments in other data sources; "
-                  "can take some time and produce some long output"))
-    group.add_option("-w", "--what-country", action="store", dest="what_cc",
-            help=("look up country name for specified country code"))
-    group.add_option("--lookup-org-by-ip", "--lookup-org-by-ip",
-            action="store", dest="lookup_org_by_ip",
-            help=("look up ASN and AS Description for an IP address"))
-    group.add_option("--lookup-org-by-range", "--lookup-org-by-range",
-            action="store_true", dest="lookup_org_by_range",
-            help=("look up announced networks in a range of addresses; "
-                  "requires --range-start and --range-end to be set"))
-    group.add_option("--range-start", "--range-start",
-            action="store", dest="range_start",
-            help=("Specify the start of a range of addresses"))
-    group.add_option("--range-end", "--range-end",
-            action="store", dest="range_end",
-            help=("Specify the end of a range of addresses"))
+    group = optparse.OptionGroup(
+        parser, "Lookup modes",
+        "Pick at most one of these modes to look up data in the "
+        "local cache.  May not be combined with cache modes.")
+    group.add_option(
+        "-4",
+        "--ipv4",
+        action="store",
+        dest="ipv4",
+        help=("look up country code and name for the specified IPv4 "
+              "address"))
+    group.add_option(
+        "-6",
+        "--ipv6",
+        action="store",
+        dest="ipv6",
+        help=("look up country code and name for the specified IPv6 "
+              "address"))
+    group.add_option(
+        "-a",
+        "--asn",
+        action="store",
+        dest="asn",
+        help="look up country code and name for the specified ASN")
+    group.add_option(
+        "-t",
+        "--code",
+        action="callback",
+        dest="cc",
+        callback=split_callback,
+        metavar="CC[:type]",
+        type="str",
+        help=("look up all allocations (or only those for number "
+              "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+              "delegation cache for the specified two-letter country "
+              "code"))
+    group.add_option(
+        "-n",
+        "--name",
+        action="callback",
+        dest="cn",
+        callback=split_callback,
+        metavar="CN[:type]",
+        type="str",
+        help=("look up all allocations (or only those for number "
+              "type 'ipv4', 'ipv6', or 'asn' if provided) in the "
+              "delegation cache for the specified full country "
+              "name"))
+    group.add_option(
+        "-p",
+        "--compare",
+        action="store",
+        dest="compare",
+        metavar="CC",
+        help=("compare assignments to the specified country code "
+              "with overlapping assignments in other data "
+              "sources; can take some time and produce some "
+              "long output"))
+    group.add_option(
+        "-w",
+        "--what-country",
+        action="store",
+        dest="what_cc",
+        help=("look up country name for specified country code"))
+    group.add_option(
+        "--lookup-org-by-ip",
+        "--lookup-org-by-ip",
+        action="store",
+        dest="lookup_org_by_ip",
+        help=("look up ASN and AS Description for an IP address"))
+    group.add_option(
+        "--lookup-org-by-range",
+        "--lookup-org-by-range",
+        action="store_true",
+        dest="lookup_org_by_range",
+        help=("look up announced networks in a range of addresses; "
+              "requires --range-start and --range-end to be set"))
+    group.add_option(
+        "--range-start",
+        "--range-start",
+        action="store",
+        dest="range_start",
+        help=("Specify the start of a range of addresses"))
+    group.add_option(
+        "--range-end", "--range-end",
+        action="store",
+        dest="range_end",
+        help=("Specify the end of a range of addresses"))
     parser.add_option_group(group)
     group = optparse.OptionGroup(parser, "Export modes")
-    group.add_option("--export-geoip", "--export-geoip", action="store_true",
-            dest="export",
-            help=("export the lookup database to GeoIPCountryWhois.csv and "
-                  "v6.csv files in the format used to build the debian "
-                  "package geoip-database"))
-    group.add_option("--geoip-v4-file", "--geoip-v4-file", action="store",
-            dest="geoip_v4_filename",
-            help=("The filename to write the IPv4 GeoIP dataset to"))
-    group.add_option("--geoip-v6-file", "--geoip-v6-file", action="store",
-            dest="geoip_v6_filename",
-            help=("The filename to write the IPv6 GeoIP dataset to"))
-    group.add_option("--geoip-asn-file", "--geoip-asn-file", action="store",
-            dest="geoip_asn_filename",
-            help=("The filename to write the IPv4 GeoIP ASNum dataset to"))
+    group.add_option(
+        "--export-geoip",
+        "--export-geoip",
+        action="store_true",
+        dest="export",
+        help=("export the lookup database to GeoIPCountryWhois.csv and "
+              "v6.csv files in the format used to build the debian "
+              "package geoip-database"))
+    group.add_option(
+        "--geoip-v4-file",
+        "--geoip-v4-file",
+        action="store",
+        dest="geoip_v4_filename",
+        help=("The filename to write the IPv4 GeoIP dataset to"))
+    group.add_option(
+        "--geoip-v6-file",
+        "--geoip-v6-file",
+        action="store",
+        dest="geoip_v6_filename",
+        help=("The filename to write the IPv6 GeoIP dataset to"))
+    group.add_option(
+        "--geoip-asn-file",
+        "--geoip-asn-file",
+        action="store",
+        dest="geoip_asn_filename",
+        help=("The filename to write the IPv4 GeoIP ASNum dataset to"))
     parser.add_option_group(group)
 
     group = optparse.OptionGroup(parser, "Network modes")
@@ -1186,17 +1345,17 @@ def main():
     if not database_cache.connect_to_database():
         print("Could not connect to database.")
         print("You may need to erase it using -e and then reload it "
-                "using -d/-z.  Exiting.")
+              "using -d/-z.  Exiting.")
         sys.exit(1)
     database_cache.set_db_version()
     downloader_parser = DownloaderParser(options.dir, database_cache,
-            options.ua)
+                                         options.ua)
     lookup = Lookup(options.dir, database_cache)
     if options.ipv4 or options.ipv6 or options.asn or options.cc \
             or options.cn or options.compare:
         if downloader_parser.check_rir_file_mtimes():
             print("Your cached RIR files are older than 24 hours; you "
-                    "probably want to update them.")
+                  "probably want to update them.")
     if options.asn:
         lookup.asn_lookup(options.asn)
     elif options.lookup_org_by_ip:
@@ -1223,11 +1382,11 @@ def main():
             country_name = lookup.get_name_from_country_code(country)
             if country_name:
                 print(("Hmm...%s? That would be %s."
-                      % (options.what_cc, country_name)))
+                       % (options.what_cc, country_name)))
                 sys.exit(0)
             else:
                 print(("Hmm, %s? We're not sure either. Are you sure that's "
-                      "a country code?" % options.what_cc))
+                       "a country code?" % options.what_cc))
                 sys.exit(1)
         else:
             country = lookup.get_country_code_from_name(options.cn)
@@ -1235,14 +1394,15 @@ def main():
                 print("It appears your search did not match a country.")
         if country:
             types = ["ipv4", "ipv6", "asn"]
-            if hasattr(options, 'type_filter') and options.type_filter.lower() in types:
+            if hasattr(options, 'type_filter') and \
+                    options.type_filter.lower() in types:
                 types = [options.type_filter.lower()]
             for request in types:
-                print("\n".join(lookup.fetch_rir_blocks_by_country(\
-                        request, country)))
+                print("\n".join(lookup.fetch_rir_blocks_by_country(
+                    request, country)))
     elif options.compare:
         print("Comparing assignments with overlapping assignments in other "
-               "data sources...")
+              "data sources...")
         lookup.lookup_countries_in_different_source(options.compare)
     elif options.init_maxmind or options.reload_maxmind:
         if options.init_maxmind:
@@ -1292,11 +1452,10 @@ def main():
         database_cache.export_geoip(lookup, v6_file, 'ipv6')
         print("Exporting GeoIP IPv4 ASNum to %s" % asn_file)
         database_cache.export_asn(asn_file, 'ipv4')
-        #XXX: Unsupported
-        #print("Exporting GeoIP IPv6 ASNum to %s" % asn_file)
-        #database_cache.export_geoip(asn_file, 'ipv6')
+        # XXX: Unsupported
+        # print("Exporting GeoIP IPv6 ASNum to %s" % asn_file)
+        # database_cache.export_geoip(asn_file, 'ipv6')
     database_cache.commit_and_close_database()
 
 if __name__ == "__main__":
     main()
-
