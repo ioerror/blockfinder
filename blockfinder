@@ -869,13 +869,15 @@ class Lookup(object):
         if not os.path.exists(country_code_path):
             return
         self.map_co = {}
-        for line in open(country_code_path):
+        country_code_file = open(country_code_path, 'r')
+        for line in country_code_file:
             if line == "" or line.startswith("Country ") or ";" not in line:
                 continue
             country_name, country_code = line.strip().split(";")
             country_name = ' '.join([part.capitalize() for part in
                                      country_name.split(" ")])
             self.map_co[country_name] = country_code
+        country_code_file.close()
 
     def knows_country_names(self):
         return self.map_co is not None
