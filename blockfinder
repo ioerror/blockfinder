@@ -692,7 +692,8 @@ class DownloaderParser(object):
             if not os.path.exists(rir_path):
                 print("Unable to find %s." % rir_path)
                 continue
-            for line in open(rir_path, 'r'):
+            rir_file = open(rir_path, 'r')
+            for line in rir_file:
                 if line.startswith("#"):
                     continue
                 entry = dict((k, v) for k, v in
@@ -720,6 +721,7 @@ class DownloaderParser(object):
                     country_code,
                     'rir',
                     source_name)
+            rir_file.close()
         self.database_cache.commit_changes()
 
     def parse_lir_files(self, lir_urls=None):
