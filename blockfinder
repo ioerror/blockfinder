@@ -780,6 +780,7 @@ class DownloaderParser(object):
                         country_code,
                         'lir',
                         'ripencc')
+            lir_file.close()
         self.database_cache.commit_changes()
 
     def parse_asn_description_file(self, asn_description_url=None):
