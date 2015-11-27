@@ -145,4 +145,4 @@ if __name__ == '__main__':
         results = test_runner.run(test_suite)
         failures += len(results.errors)
         failures += len(results.failures)
-    sys.exit(failures)
+    sys.exit(bool(failures))
