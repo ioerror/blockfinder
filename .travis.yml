@@ -9,5 +9,5 @@ python:
 before_script:
   - pip install pep8==1.6.2
 script:
-  - python blockfindertest.py
-  - pep8 blockfinder blockfindertest.py
+  - python setup.py test
+  - pep8 blockfinder block_finder/ setup.py
