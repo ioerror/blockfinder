@@ -36,7 +36,7 @@ __url__ = 'https://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
-__version__ = '3.14159'
+__version__ = '3.14160'
 
 try:
     from future import antigravity
