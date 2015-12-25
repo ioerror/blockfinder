@@ -966,17 +966,24 @@ class Lookup(object):
             print("AS%s not found!" % asn)
 
     def fetch_rir_blocks_by_country(self, request, country):
+        if request == "asn":
+            return [str(start_num) for (start_num, end_num) in
+                    self.database_cache.fetch_assignments(request, country)]
+        if request != "ipv4" and request != "ipv6":
+            return []
+        seen = set()
         result = []
         for (start_num, end_num) in \
                 self.database_cache.fetch_assignments(request, country):
-            if request == "ipv4" or request == "ipv6":
-                start_ipaddr = ipaddr.ip_address(start_num)
-                end_ipaddr = ipaddr.ip_address(end_num)
-                result += [str(x) for x in
-                           ipaddr.summarize_address_range(
-                    start_ipaddr, end_ipaddr)]
-            else:
-                result.append(str(start_num))
+            start_ipaddr = ipaddr.ip_address(start_num)
+            end_ipaddr = ipaddr.ip_address(end_num)
+            for block in (str(x) for x in
+                          ipaddr.summarize_address_range(start_ipaddr,
+                                                         end_ipaddr)):
+                if block in seen:
+                    continue
+                seen.add(block)
+                result.append(block)
         return result
 
     def lookup_countries_in_different_source(self, first_country_code):
