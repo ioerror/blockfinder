@@ -192,7 +192,7 @@ class DatabaseCache(object):
     def insert_assignment(self, start_num, end_num, num_type,
                           country_code, source_type, source_name):
         """ Insert an assignment into the database cache, without
-            commiting after the insertion. """
+            committing after the insertion. """
         sql = ('INSERT INTO assignments (start_hex, next_start_hex, '
                'num_type, country_code, source_type, source_name) '
                'VALUES (?, ?, ?, ?, ?, ?)')
