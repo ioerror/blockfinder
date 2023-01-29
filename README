@@ -7,15 +7,15 @@ Contrary to popular media claims, blockfinder is a simple text based console
 tool that returns a list of netblocks for a given country.  It does this by
 fetching the following lists of allocations:
 
-    ftp://ftp.arin.net/pub/stats/arin/delegated-arin-latest
-    ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
-    ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
-    ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
-    ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
+    https://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest
+    https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-latest
+    https://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
+    https://ftp.apnic.net/stats/apnic/delegated-apnic-latest
+    https://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
 
 The list of ISO codes is ISO 3166-1 as found here:
 
-    http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm
+    https://web.archive.org/web/20161122071627if_/http://www.iso.org/iso/home/standards/country_codes/country_names_and_code_elements_txt-temp.htm
     http://en.wikipedia.org/wiki/ISO_3166-1
 
 blockfinder has two methods of operation:

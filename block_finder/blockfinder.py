@@ -21,7 +21,7 @@ if sys.version_info[0] >= 3:
     from urllib.error import URLError
     long = int
 else:
-    from ConfigParser import SafeConfigParser as ConfigParser
+    from configparser import SafeConfigParser as ConfigParser
     from urllib2 import (urlopen, Request, URLError)
     try:
         from embedded_ipaddr import ipaddr
@@ -36,7 +36,7 @@ __url__ = 'https://github.com/ioerror/blockfinder/'
 __author__ = 'Jacob Appelbaum <jacob@appelbaum.net>, David <db@d1b.org>'
 __copyright__ = 'Copyright (c) 2010'
 __license__ = 'See LICENSE for licensing information'
-__version__ = '4.0.0'
+__version__ = '4.0.1'
 
 try:
     from future import antigravity
@@ -210,7 +210,7 @@ class DatabaseCache(object):
         sql = ('INSERT INTO asn_descriptions '
                '(as_num, source_name, description) '
                'VALUES (?, ?, ?)')
-        self.cursor.execute(sql, (asn, source_name, unicode(description)))
+        self.cursor.execute(sql, (asn, source_name, str(description)))
 
     def insert_asn_assignment(self, start_num, end_num, num_type, asn,
                               source_type, source_name):
@@ -243,7 +243,7 @@ class DatabaseCache(object):
         self.cursor.execute(sql, (num_type, country_code))
         result = []
         for row in self.cursor:
-            result.append((long(row[0], 16), long(row[1], 16) - 1))
+            result.append((int(row[0], 16), int(row[1], 16) - 1))
         return result
 
     def fetch_country_code(self, num_type, source_type, lookup_num):
@@ -255,9 +255,9 @@ class DatabaseCache(object):
                'AND source_type = ? AND start_hex <= ? '
                'AND next_start_hex > ?')
         if num_type == 'ipv6':
-            lookup_hex = '%033x' % long(lookup_num)
+            lookup_hex = '%033x' % int(lookup_num)
         else:
-            lookup_hex = '%09x' % long(lookup_num)
+            lookup_hex = '%09x' % int(lookup_num)
         self.cursor.execute(sql, (num_type, source_type, lookup_hex,
                                   lookup_hex))
         row = self.cursor.fetchone()
@@ -287,16 +287,16 @@ class DatabaseCache(object):
         self.cursor.execute(sql, (first_country_code, ))
         result = []
         for row in self.cursor:
-            result.append((str(row[0]), long(row[1], 16),
-                           long(row[2], 16) - 1, str(row[3]), long(row[4], 16),
-                           long(row[5], 16) - 1, str(row[6]), str(row[7])))
+            result.append((str(row[0]), int(row[1], 16),
+                           int(row[2], 16) - 1, str(row[3]), int(row[4], 16),
+                           int(row[5], 16) - 1, str(row[6]), str(row[7])))
         return result
 
     def fetch_org_by_ip_address(self, lookup_str, num_type):
         if num_type == 'ipv4':
-            lookup_hex = '%09x' % long(int(lookup_str))
+            lookup_hex = '%09x' % int(int(lookup_str))
         else:
-            lookup_hex = '%033x' % long(int(lookup_str))
+            lookup_hex = '%033x' % int(int(lookup_str))
         sql = ('SELECT asn_descriptions.as_num, asn_descriptions.description, '
                'asn_assignments.start_hex, asn_assignments.next_start_hex '
                'FROM asn_descriptions JOIN asn_assignments ON '
@@ -309,11 +309,11 @@ class DatabaseCache(object):
 
     def fetch_org_by_ip_range(self, lookup_start, lookup_end, num_type):
         if num_type == 'ipv4':
-            lookup_start_hex = '%09x' % long(int(lookup_start))
-            lookup_end_hex = '%09x' % long(int(lookup_end))
+            lookup_start_hex = '%09x' % int(int(lookup_start))
+            lookup_end_hex = '%09x' % int(int(lookup_end))
         else:
-            lookup_start_hex = '%033x' % long(int(lookup_start))
-            lookup_end_hex = '%033x' % long(int(lookup_end))
+            lookup_start_hex = '%033x' % int(int(lookup_start))
+            lookup_end_hex = '%033x' % int(int(lookup_end))
 
         sql = ('SELECT asn_descriptions.as_num, asn_descriptions.description, '
                'asn_assignments.start_hex, asn_assignments.next_start_hex '
@@ -331,7 +331,7 @@ class DatabaseCache(object):
         for row in records:
             try:
                 start_hex, next_start_hex, record = \
-                    long(row[0], 16), long(row[1], 16), str(row[2])
+                    int(row[0], 16), int(row[1], 16), str(row[2])
                 nb = bits - int(log(next_start_hex - start_hex, 2))
                 net = ipaddr.IPNetwork("%s/%d" %
                                        (ipaddr.IPAddress(start_hex), nb))
@@ -371,7 +371,7 @@ class DatabaseCache(object):
         try:
             f = open(filename, 'w')
         except IOError:
-            print("Unable to open %s" % filename)
+            print(("Unable to open %s" % filename))
             return
 
         def write_csv_line(network, asn):
@@ -403,7 +403,7 @@ class DatabaseCache(object):
         try:
             f = open(filename, 'w')
         except IOError:
-            print("Unable to open %s" % filename)
+            print(("Unable to open %s" % filename))
             return
 
         def write_csv_line(network, country_code):
@@ -446,25 +446,26 @@ class DownloaderParser(object):
     """
 
     RIR_URLS = """
-        ftp://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest
-        ftp://ftp.ripe.net/ripe/stats/delegated-ripencc-latest
-        ftp://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
-        ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-latest
-        ftp://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
+        https://ftp.arin.net/pub/stats/arin/delegated-arin-extended-latest
+        https://ftp.ripe.net/pub/stats/ripencc/delegated-ripencc-latest
+        https://ftp.afrinic.net/pub/stats/afrinic/delegated-afrinic-latest
+        https://ftp.apnic.net/stats/apnic/delegated-apnic-latest
+        https://ftp.lacnic.net/pub/stats/lacnic/delegated-lacnic-latest
     """
 
     LIR_URLS = """
-        ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
-        ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
+        https://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
+        https://ftp.ripe.net/ripe/dbase/split/ripe.db.inet6num.gz
     """
 
-    COUNTRY_CODE_URL = ("http://www.iso.org/iso/home/standards/country_codes/"
+    COUNTRY_CODE_URL = ("https://web.archive.org/web/20161122071627if_/"
+                        "http://www.iso.org:80/iso/home/standards/country_codes/"
                         "country_names_and_code_elements_txt-temp.htm")
 
-    ASN_DESCRIPTION_URL = "http://www.cidr-report.org/as2.0/autnums.html"
+    ASN_DESCRIPTION_URL = "https://www.cidr-report.org/as2.0/autnums.html"
 
     ASN_ASSIGNMENT_URLS = [
-        ('http://archive.routeviews.org/oix-route-views/'
+        ('https://archive.routeviews.org/oix-route-views/'
          'oix-full-snapshot-latest.dat.bz2'),
     ]
 
@@ -632,7 +633,7 @@ class DownloaderParser(object):
             maxmind_path = os.path.join(self.cache_dir,
                                         maxmind_url.split('/')[-1])
             if not os.path.exists(maxmind_path):
-                print("Unable to find %s." % maxmind_path)
+                print(("Unable to find %s." % maxmind_path))
                 continue
             if maxmind_path.endswith('.zip'):
                 maxmind_zip_path = zipfile.ZipFile(maxmind_path)
@@ -651,7 +652,7 @@ class DownloaderParser(object):
     def import_maxmind_file(self, maxmind_path):
         self.database_cache.delete_assignments(maxmind_path)
         if not os.path.exists(maxmind_path):
-            print("Unable to find %s." % maxmind_path)
+            print(("Unable to find %s." % maxmind_path))
             return
         with open(maxmind_path, 'r') as f:
             content = f.read()
@@ -693,7 +694,7 @@ class DownloaderParser(object):
             rir_path = os.path.join(self.cache_dir,
                                     rir_url.split('/')[-1])
             if not os.path.exists(rir_path):
-                print("Unable to find %s." % rir_path)
+                print(("Unable to find %s." % rir_path))
                 continue
             rir_file = open(rir_path, 'r')
             for line in rir_file:
@@ -737,7 +738,7 @@ class DownloaderParser(object):
             lir_path = os.path.join(self.cache_dir,
                                     lir_url.split('/')[-1])
             if not os.path.exists(lir_path):
-                print("Unable to find %s." % lir_path)
+                print(("Unable to find %s." % lir_path))
                 continue
             if lir_path.endswith('.gz'):
                 lir_file = gzip.open(lir_path)
@@ -764,7 +765,7 @@ class DownloaderParser(object):
                         num_type = 'ipv4'
                     except Exception as e:
                         if self.verbose:
-                            print(repr(e), line)
+                            print((repr(e), line))
                 elif not entry and "inet6num:" in line:
                     try:
                         network_str = line.replace("inet6num:", "").strip()
@@ -775,7 +776,7 @@ class DownloaderParser(object):
                         num_type = 'ipv6'
                     except Exception as e:
                         if self.verbose:
-                            print(repr(e), line)
+                            print((repr(e), line))
                 elif entry and "country:" in line:
                     country_code = line.replace("country:", "").strip()
                     self.database_cache.insert_assignment(
@@ -820,11 +821,12 @@ class DownloaderParser(object):
                 self.cache_dir,
                 asn_assignment_url.split('/')[-1])
             if not os.path.exists(asn_assignment_path):
-                print("Unable to find %s." % asn_assignment_path)
+                print(("Unable to find %s." % asn_assignment_path))
                 continue
             if asn_assignment_path.endswith('.bz2'):
                 b = bz2.BZ2File(asn_assignment_path)
                 for line in b:
+                    line = str(line)
                     if line.startswith("*"):
                         l = line.split()
                         netblock, path = l[1], l[6:-1]
@@ -899,43 +901,43 @@ class Lookup(object):
             return cc_code[0]
 
     def lookup_ipv6_address(self, lookup_ipaddr):
-        print("Reverse lookup for: " + str(lookup_ipaddr))
+        print(("Reverse lookup for: " + str(lookup_ipaddr)))
         for source_type in ['maxmind', 'rir', 'lir']:
             cc = self.database_cache.fetch_country_code(
                 'ipv6',
                 source_type,
                 int(lookup_ipaddr))
             if cc:
-                print(source_type.upper(), "country code:", cc)
+                print((source_type.upper(), "country code:", cc))
                 cn = self.get_name_from_country_code(cc)
                 if cn:
-                    print(source_type.upper(), "country name:", cn)
+                    print((source_type.upper(), "country name:", cn))
 
     def lookup_ipv4_address(self, lookup_ipaddr):
-        print("Reverse lookup for: " + str(lookup_ipaddr))
+        print(("Reverse lookup for: " + str(lookup_ipaddr)))
         maxmind_cc = self.database_cache.fetch_country_code('ipv4', 'maxmind',
                                                             int(lookup_ipaddr))
         if maxmind_cc:
-            print('MaxMind country code:', maxmind_cc)
+            print(('MaxMind country code:', maxmind_cc))
             maxmind_cn = self.get_name_from_country_code(maxmind_cc)
             if maxmind_cn:
-                print('MaxMind country name:', maxmind_cn)
+                print(('MaxMind country name:', maxmind_cn))
         rir_cc = self.database_cache.fetch_country_code('ipv4', 'rir',
                                                         int(lookup_ipaddr))
         if rir_cc:
-            print('RIR country code:', rir_cc)
+            print(('RIR country code:', rir_cc))
             rir_cn = self.get_name_from_country_code(rir_cc)
             if rir_cn:
-                print('RIR country name:', rir_cn)
+                print(('RIR country name:', rir_cn))
         else:
             print('Not found in RIR db')
         lir_cc = self.database_cache.fetch_country_code('ipv4', 'lir',
                                                         int(lookup_ipaddr))
         if lir_cc:
-            print('LIR country code:', lir_cc)
+            print(('LIR country code:', lir_cc))
             lir_cn = self.get_name_from_country_code(lir_cc)
             if lir_cn:
-                print('LIR country name:', lir_cn)
+                print(('LIR country name:', lir_cn))
         if maxmind_cc and maxmind_cc != rir_cc:
             print("It appears that the RIR data conflicts with MaxMind's "
                   "data.  MaxMind's data is likely closer to being "
@@ -953,17 +955,17 @@ class Lookup(object):
                 print(("Did not recognize '%s' as either IPv4 or IPv6 "
                        "address." % lookup_str))
         except ValueError as e:
-            print("'%s' is not a valid IP address." % lookup_str)
+            print(("'%s' is not a valid IP address." % lookup_str))
 
     def asn_lookup(self, asn):
         asn_cc = self.database_cache.fetch_country_code('asn', 'rir', asn)
         if asn_cc:
-            print("AS country code: %s" % asn_cc)
+            print(("AS country code: %s" % asn_cc))
             asn_cn = self.get_name_from_country_code(asn_cc)
             if asn_cn:
-                print("AS country name: %s" % asn_cn)
+                print(("AS country name: %s" % asn_cn))
         else:
-            print("AS%s not found!" % asn)
+            print(("AS%s not found!" % asn))
 
     def fetch_rir_blocks_by_country(self, request, country):
         if request == "asn":
@@ -991,13 +993,13 @@ class Lookup(object):
             look up to which country code(s) the same number ranges are
             assigned in other source types.  Print out the result showing
             similarities and differences. """
-        print(("\nLegend:\n"
+        print((("\nLegend:\n"
                "  '<' = found assignment range with country code '%s'\n"
                "  '>' = overlapping assignment range with same country code\n"
                "  '*' = overlapping assignment range, first conflict\n"
                "  '#' = overlapping assignment range, second conflict and "
                "beyond\n  ' ' = neighboring assignment range") % (
-            first_country_code, ))
+            first_country_code, )))
         results = self.database_cache.fetch_country_blocks_in_other_sources(
             first_country_code)
         prev_first_source_type = ''
@@ -1007,7 +1009,7 @@ class Lookup(object):
                 second_source_type, second_start_num, second_end_num,
                 second_country_code, num_type) in results:
             if first_source_type != prev_first_source_type:
-                print("\nAssignments in '%s':" % (first_source_type, ))
+                print(("\nAssignments in '%s':" % (first_source_type, )))
             prev_first_source_type = first_source_type
             if first_start_num != prev_first_start_num:
                 cur_second_country_codes = []
@@ -1038,8 +1040,8 @@ class Lookup(object):
                 second_range = "AS%d-%d" % (second_start_num, second_end_num)
             else:
                 second_range = "AS%d" % (second_start_num, )
-            print("%1s %s %s %s" % (marker, second_country_code, second_range,
-                                    second_source_type, ))
+            print(("%1s %s %s %s" % (marker, second_country_code, second_range,
+                                    second_source_type, )))
 
     def _get_network_string_from_range(self, end, start, bits=32):
         start, end = int(start, 16), int(end, 16)
@@ -1063,13 +1065,13 @@ class Lookup(object):
             for r in rs:
                 network = self._get_network_string_from_range(
                     r[3], r[2], bits=len_bits)
-                print("%s in %s announced by AS%s - %s" %
-                      (lookup_str, network, r[0], r[1]))
+                print(("%s in %s announced by AS%s - %s" %
+                      (lookup_str, network, r[0], r[1])))
         except ValueError:
-            print("'%s' is not a valid IP address." % lookup_str)
+            print(("'%s' is not a valid IP address." % lookup_str))
         except TypeError:
-            print("Did not find any matching announcements containing %s." %
-                  lookup_str)
+            print(("Did not find any matching announcements containing %s." %
+                  lookup_str))
 
     def lookup_org_by_range(self, start_range, end_range):
         output_str = "%s announced by AS%s - %s"
@@ -1091,12 +1093,12 @@ class Lookup(object):
             for r in rs:
                 network = self._get_network_string_from_range(
                     r[3], r[2], bits=len_bits)
-                print(output_str % (network, r[0], r[1]))
+                print((output_str % (network, r[0], r[1])))
         except ValueError:
-            print("%s %s is not a valid IP range." % (start_range, end_range))
+            print(("%s %s is not a valid IP range." % (start_range, end_range)))
         except TypeError:
-            print("Did not find any matching announcements in range %s %s." %
-                  (start_range, end_range))
+            print(("Did not find any matching announcements in range %s %s." %
+                  (start_range, end_range)))
 
 
 def split_callback(option, opt, value, parser):
@@ -1416,13 +1418,15 @@ def main():
                     options.type_filter.lower() in types:
                 types = [options.type_filter.lower()]
             for request in types:
-                print("\n".join(lookup.fetch_rir_blocks_by_country(
-                    request, country)))
+                print(("\n".join(lookup.fetch_rir_blocks_by_country(
+                    request, country))))
     elif options.compare:
         print("Comparing assignments with overlapping assignments in other "
               "data sources...")
         lookup.lookup_countries_in_different_source(options.compare)
     elif options.init_maxmind or options.reload_maxmind:
+        print("Maxmind data is no longer freely available.")
+        sys.exit(2)
         if options.init_maxmind:
             print("Downloading Maxmind GeoIP files...")
             downloader_parser.download_maxmind_files()
@@ -1461,14 +1465,16 @@ def main():
         print("Importing ASN Assignments...")
         downloader_parser.parse_asn_assignment_files()
     elif options.export:
+        print("Export needs to be refactored.")
+        sys.exit(3)
         v4_file = options.geoip_v4_filename or "GeoIPCountryWhois.csv"
         v6_file = options.geoip_v6_filename or "v6.csv"
         asn_file = options.geoip_asn_filename or "GeoIPASNum.csv"
-        print("Exporting GeoIP IPv4 to %s" % v4_file)
+        print(("Exporting GeoIP IPv4 to %s" % v4_file))
         database_cache.export_geoip(lookup, v4_file, 'ipv4')
-        print("Exporting GeoIP IPv6 to %s" % v6_file)
+        print(("Exporting GeoIP IPv6 to %s" % v6_file))
         database_cache.export_geoip(lookup, v6_file, 'ipv6')
-        print("Exporting GeoIP IPv4 ASNum to %s" % asn_file)
+        print(("Exporting GeoIP IPv4 ASNum to %s" % asn_file))
         database_cache.export_asn(asn_file, 'ipv4')
         # XXX: Unsupported
         # print("Exporting GeoIP IPv6 ASNum to %s" % asn_file)

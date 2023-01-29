@@ -1,5 +1,11 @@
 High Priority:
 
+Fix -m:
+Remove Maxmind GeoIP usage; it is broken
+    Consider using ipfire's database and convert it to geoip format:
+    https://location.ipfire.org/how-to-use
+    Add https://location.ipfire.org/databases/1/
+
 Add support for LIR blocks by parsing the ripe.db.inetnum.gz.
 This lists sub-allocations and assignments made by local LIR/ISPs:
     ftp://ftp.ripe.net/ripe/dbase/split/ripe.db.inetnum.gz
